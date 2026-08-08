@@ -1,0 +1,71 @@
+@startuml BlackoutRadar_DomainModel
+
+title BlackoutRadar — Domain Model
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam RectangleRoundCorner 12
+
+package "Identity" {
+
+    rectangle User
+
+}
+
+package "Address Catalog" {
+
+    rectangle Region
+    rectangle City
+    rectangle Street
+    rectangle Address
+    rectangle "Transformer Station" as TS
+
+}
+
+package "Monitoring" {
+
+    rectangle Subscription
+
+}
+
+package "Outages" {
+
+    rectangle Source
+    rectangle "Power Outage" as Outage
+
+}
+
+package "Notifications" {
+
+    rectangle Notification
+
+}
+
+Region --> City : contains
+
+City --> Street : contains
+
+Street --> Address : contains
+
+User --> Subscription : owns
+
+Subscription --> Address : monitors
+
+Subscription --> TS : filters by\n(optional)
+
+Source --> Outage : provides
+
+Outage --> Address : affects
+
+Outage --> TS : specifies\n(optional)
+
+Outage --> Notification : creates
+
+Notification --> User : delivered to
+
+@enduml

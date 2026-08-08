@@ -1,0 +1,80 @@
+@startuml BlackoutRadar_DatabaseER
+
+title BlackoutRadar — Database ER Diagram
+
+left to right direction
+
+hide circle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+package "Identity" {
+
+entity "user" as user
+entity "refresh_token" as refresh_token
+
+}
+
+package "Address Catalog" {
+
+entity region
+entity city
+entity street
+entity address
+entity transformer_station
+
+}
+
+package "Monitoring" {
+
+entity subscription
+entity subscription_transformer_station
+
+}
+
+package "Outages" {
+
+entity source
+entity power_outage
+entity power_outage_address
+
+}
+
+package "Notifications" {
+
+entity notification
+
+}
+
+region ||--o{ city
+
+city ||--o{ street
+
+street ||--o{ address
+
+user ||--o{ refresh_token
+
+user ||--o{ subscription
+
+user ||--o{ notification
+
+address ||--o{ subscription
+
+subscription ||--o{ subscription_transformer_station
+
+transformer_station ||--o{ subscription_transformer_station
+
+source ||--o{ power_outage
+
+power_outage ||--o{ power_outage_address
+
+address ||--o{ power_outage_address
+
+transformer_station ||--o{ power_outage_address
+
+subscription ||--o{ notification
+
+power_outage ||--o{ notification
+
+@enduml

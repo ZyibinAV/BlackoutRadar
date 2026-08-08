@@ -1,0 +1,56 @@
+@startuml BlackoutRadar_PackageResponsibility
+
+title BlackoutRadar — Package Responsibility
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam ArrowThickness 1.5
+
+package "Application Core" {
+
+    package "common" as common
+
+    package "security" as security
+
+    package "parser" as parser
+
+    package "matching" as matching
+
+    package "notification" as notification
+
+    package "user" as user
+
+    package "source" as source
+
+    package "outage" as outage
+
+    package "address" as address
+}
+
+parser ----> source : reads sources
+
+parser ----> common : uses
+
+matching ----> outage : processes
+
+matching ----> address : compares
+
+matching ----> common : uses
+
+notification ----> user : delivers
+
+notification ----> outage : references
+
+notification ----> common : uses
+
+security ----> user : authenticates
+
+source ----> outage : provides data
+
+user ----> address : owns subscriptions
+
+@enduml

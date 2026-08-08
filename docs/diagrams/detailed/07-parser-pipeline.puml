@@ -1,0 +1,35 @@
+@startuml BlackoutRadar_ParserPipeline
+
+title BlackoutRadar — Parser Pipeline
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam ArrowThickness 1.5
+
+actor Scheduler
+
+participant "Provider Registry" as Registry
+participant "Outage Provider" as Provider
+participant "Adapter"
+participant "Processing Pipeline" as Pipeline
+
+Scheduler -> Registry : Request active providers
+
+Registry --> Scheduler : Provider list
+
+loop For each active source
+
+    Scheduler -> Provider : Parse source
+
+    Provider -> Provider : Download HTML/PDF/DOC
+
+    Provider -> Adapter : Raw data
+
+    Adapter --> Provider : ParsedOutage
+
+    Provider -> Pipeline : ParsedOutage
+
+end
+
+@enduml

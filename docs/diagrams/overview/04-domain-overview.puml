@@ -1,0 +1,29 @@
+@startuml BlackoutRadar_DomainOverview
+
+title BlackoutRadar — Domain Overview
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam ArrowThickness 1.5
+skinparam RectangleRoundCorner 15
+
+rectangle "User" as User
+rectangle "Subscription" as Subscription
+rectangle "Address" as Address
+rectangle "Power Outage" as Outage
+rectangle "Notification" as Notification
+
+User --> Subscription : owns
+
+Subscription --> Address : monitors
+
+Outage --> Address : affects
+
+Outage --> Notification : creates
+
+Notification --> User : delivered to
+
+@enduml

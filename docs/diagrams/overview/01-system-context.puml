@@ -1,0 +1,35 @@
+@startuml BlackoutRadar_SystemContext
+
+title BlackoutRadar — System Context
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+
+actor User
+actor Administrator
+
+rectangle "BlackoutRadar" as System
+
+cloud "Energy Company\nWebsites" as Websites
+cloud "Open Source\nParser" as Parser
+database "PostgreSQL" as DB
+collections "Object Storage\n(MinIO)" as MinIO
+queue "SMTP Server" as SMTP
+queue "Telegram API" as Telegram
+
+User --> System : Manage subscriptions\nReceive notifications
+
+Administrator --> System : Manage sources\nManage users
+
+Websites --> Parser : HTML / PDF / DOC / RTF
+Parser --> System : Parsed outages
+
+System --> DB : Store domain data
+System --> MinIO : Store avatars
+System --> SMTP : Email notifications
+System --> Telegram : Telegram notifications
+
+@enduml

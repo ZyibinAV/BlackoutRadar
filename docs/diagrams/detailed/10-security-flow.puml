@@ -1,0 +1,70 @@
+@startuml BlackoutRadar_SecurityFlow
+
+title BlackoutRadar — Security Flow
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam ArrowThickness 1.5
+
+actor User
+
+participant "REST API" as API
+participant "Security Layer" as Security
+participant "Authentication Service" as Auth
+database "Refresh Token Store" as Tokens
+participant "Business Service" as Service
+
+== Login ==
+
+User -> API : Login request
+
+API -> Auth : Authenticate
+
+Auth --> API : Access Token + Refresh Token
+
+API --> User : JWT
+
+== Authorized request ==
+
+User -> API : Request + JWT
+
+API -> Security : Validate JWT
+
+alt JWT valid
+
+    Security -> Service : Authenticated request
+
+    Service --> API : Response
+
+    API --> User : Success
+
+else JWT expired
+
+    Security --> API : Unauthorized
+
+    API --> User : 401 Unauthorized
+
+end
+
+== Refresh Token ==
+
+User -> API : Refresh request
+
+API -> Tokens : Validate Refresh Token
+
+alt Refresh Token valid
+
+    Tokens --> API : OK
+
+    API --> User : New JWT
+
+else Refresh Token invalid
+
+    Tokens --> API : Invalid
+
+    API --> User : Login required
+
+end
+
+@enduml

@@ -1,0 +1,52 @@
+@startuml BlackoutRadar_Container
+
+title BlackoutRadar — Container Diagram
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+package "Spring Boot Application" {
+
+    [REST API]
+
+    [Authentication]
+
+    [Parser]
+
+    [Matching Engine]
+
+    [Notification Engine]
+
+}
+
+database PostgreSQL
+
+collections MinIO
+
+queue SMTP
+
+queue Telegram
+
+[REST API] --> [Authentication]
+
+[Parser] --> [Matching Engine]
+
+[Matching Engine] --> [Notification Engine]
+
+[REST API] --> PostgreSQL
+
+[Parser] --> PostgreSQL
+
+[Matching Engine] --> PostgreSQL
+
+[Notification Engine] --> PostgreSQL
+
+[Notification Engine] --> SMTP
+
+[Notification Engine] --> Telegram
+
+[REST API] --> MinIO
+
+@enduml

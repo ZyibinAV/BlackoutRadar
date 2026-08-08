@@ -1,0 +1,33 @@
+@startuml BlackoutRadar_NotificationPipeline
+
+title BlackoutRadar — Notification Pipeline
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam ArrowThickness 1.5
+
+participant "Notification Engine" as Engine
+participant "Channel Adapter" as Adapter
+participant "SMTP"
+participant "Telegram"
+
+Engine -> Adapter : Deliver notification
+
+alt Email
+
+    Adapter -> SMTP : Send email
+
+    SMTP --> Adapter : Delivery result
+
+else Telegram
+
+    Adapter -> Telegram : Send message
+
+    Telegram --> Adapter : Delivery result
+
+end
+
+Adapter --> Engine : Update status
+
+@enduml
