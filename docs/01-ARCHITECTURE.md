@@ -77,7 +77,7 @@ BlackoutRadar представляет собой
 
 Подробнее:
 
-[ADR-001 — Domain First Architecture](adr/  ADR-001-Domain-First-Architecture.md)
+[ADR-001 — Domain First Architecture](adr/ADR-001-Domain-First-Architecture.md)
 
 ---
 
