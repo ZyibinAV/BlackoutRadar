@@ -1,71 +1,219 @@
-@startuml BlackoutRadar_DomainModel
-
+@startuml
 title BlackoutRadar — Domain Model
 
-left to right direction
-
-skinparam shadowing false
+skinparam classAttributeIconSize 0
 skinparam linetype ortho
-skinparam defaultFontName Arial
-skinparam ArrowThickness 1.5
-skinparam packageStyle rectangle
-skinparam RectangleRoundCorner 12
 
 package "Identity" {
 
-    rectangle User
+    class User {
+        +id
+        +email
+        +passwordHash
+        +role
+        +isActive
+        +nickname
+        +about
+        +avatar
+    }
 
+    class RefreshToken {
+        +id
+        +expiresAt
+        +revokedAt
+    }
 }
 
 package "Address Catalog" {
 
-    rectangle Region
-    rectangle City
-    rectangle Street
-    rectangle Address
-    rectangle "Transformer Station" as TS
+    class Region {
+        +id
+        +name
+    }
 
+    class RegionalDistrict {
+        +id
+        +type
+        +name
+    }
+
+    class City {
+        +id
+        +name
+    }
+
+    class CityDistrict {
+        +id
+        +name
+    }
+
+    class Street {
+        +id
+        +type
+        +canonicalName
+    }
+
+    enum StreetType {
+        STREET
+        PROSPECT
+        BOULEVARD
+        LANE
+        PASSAGE
+        SQUARE
+        EMBANKMENT
+        HIGHWAY
+        ROAD
+        TRACT
+        ALLEY
+        DEAD_END
+        DESCENT
+        MAGISTRAL
+        UNKNOWN
+    }
+
+    class Address {
+        +id
+        +houseNumber
+        +houseAddition
+        +canonicalHouse
+    }
 }
 
 package "Monitoring" {
 
-    rectangle Subscription
+    class Subscription {
+        +id
+        +monitoringStart
+        +monitoringEnd
+        +isActive
+        +serviceAccessUntil
+    }
 
+    class TransformerStation {
+        +id
+        +name
+    }
 }
 
-package "Outages" {
+package "Outage" {
 
-    rectangle Source
-    rectangle "Power Outage" as Outage
+    class Source {
+        +id
+        +name
+        +sourceType
+        +providerType
+        +configuration
+        +schedule
+        +isActive
+    }
 
+    class PowerOutage {
+        +id
+        +startTime
+        +endTime
+        +reason
+        +status
+    }
+
+    class PowerOutageAddress {
+        +id
+    }
 }
 
-package "Notifications" {
+package "Notification" {
 
-    rectangle Notification
-
+    class Notification {
+        +id
+        +message
+        +status
+    }
 }
 
-Region --> City : contains
+' Identity
 
-City --> Street : contains
+User "1" -- "0..*" RefreshToken
+User "1" -- "0..*" Subscription
 
-Street --> Address : contains
+' Address Catalog
 
-User --> Subscription : owns
+Region "1" -- "0..*" RegionalDistrict
+Region "1" -- "0..*" City
 
-Subscription --> Address : monitors
+RegionalDistrict "0..1" -- "0..*" City
 
-Subscription --> TS : filters by\n(optional)
+City "1" -- "0..*" CityDistrict
+City "1" -- "0..*" Street
 
-Source --> Outage : provides
+Street --> StreetType
 
-Outage --> Address : affects
+Street "1" -- "0..*" Address
+CityDistrict "0..1" -- "0..*" Address
 
-Outage --> TS : specifies\n(optional)
+' Monitoring
 
-Outage --> Notification : creates
+Address "1" -- "0..*" Subscription
 
-Notification --> User : delivered to
+Subscription "0..*" -- "0..*" TransformerStation
+
+' Outage
+
+Source "1" -- "0..*" PowerOutage
+
+PowerOutage "1" -- "1..*" PowerOutageAddress
+Address "1" -- "0..*" PowerOutageAddress
+
+PowerOutageAddress "0..*" -- "0..1" TransformerStation
+
+' Notification
+
+Subscription "1" -- "0..*" Notification
+PowerOutage "1" -- "0..*" Notification
+
+note right of Region
+  Верхний административный
+  контекст адреса.
+end note
+
+note right of RegionalDistrict
+  Опциональная промежуточная
+  административно-муниципальная
+  единица внутри Region.
+end note
+
+note right of City
+  City всегда принадлежит Region.
+
+  RegionalDistrict является
+  необязательным.
+end note
+
+note right of CityDistrict
+  Внутригородской район.
+
+  Не является родителем Street.
+  Может уточнять конкретный Address.
+end note
+
+note right of Street
+  Street принадлежит City.
+
+  Идентичность:
+  City + StreetType + CanonicalName
+end note
+
+note right of Address
+  Канонический адрес.
+
+  Идентичность:
+  Street + CityDistrict? + CanonicalHouse
+end note
+
+note bottom of Notification
+  Notification создается
+  после успешного Match.
+
+  User определяется
+  через Subscription.
+end note
 
 @enduml

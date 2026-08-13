@@ -1,356 +1,211 @@
 # Database
 
-> Проектирование модели хранения данных BlackoutRadar.
+> Физическая модель хранения данных BlackoutRadar.
 
 ---
 
 # Назначение
-
-Документ описывает физическую модель данных, структуру базы данных и принципы хранения информации.
-
-Database отвечает на вопрос:
-
-> **«Как информация хранится в PostgreSQL?»**
-
----
-
-# Навигация
-
-| Раздел | Ссылка |
-|---------|--------|
-| ⬅ Предыдущий | [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md) |
-| 🏠 Документация | [README](README.md) |
-| ➡ Следующий | [04-PARSER](04-PARSER.md) |
-
----
-
-# Связанные ADR
-
-- [ADR-002 — Canonical Address Model](adr/ADR-002-Canonical-Address-Model.md)
-- [ADR-005 — PowerOutage Event Model](adr/ADR-005-PowerOutage-Event-Model.md)
-
----
-
-# Связанные диаграммы
-
-- [Domain Model](diagrams/detailed/05-domain-model.puml)
-- [Database ER](diagrams/detailed/06-database-er.puml)
-
----
-
-# Database Design
-
----
-
-# Назначение
-
-Документ описывает
-физическую модель хранения данных
-проекта BlackoutRadar.
-
-В отличие от DOMAIN_MODEL.md,
-
-данный документ отвечает
-на вопрос:
-
-> Как предметная область
-реализуется
-в реляционной базе данных.
 
 Документ является
 основной спецификацией
 структуры PostgreSQL.
 
----
-
-# Основные принципы
-
-Физическая модель данных
-строится
-на основании
-предметной области,
-описанной
-в DOMAIN_MODEL.md.
-
-Структура базы данных
-не определяет
-архитектуру системы,
-а реализует
+Database реализует
 уже принятые
-архитектурные решения.
+архитектурные решения
+и не определяет
+предметную область.
 
 ---
 
 # Используемая СУБД
 
-PostgreSQL 18
+PostgreSQL 18.
 
 ---
 
-# Основные правила проектирования
+# Основные правила
 
-## 1. UUID используется в качестве Primary Key
+## 1. Primary Key
 
 Все основные сущности
 используют UUID.
 
-Использование
-автоинкрементных идентификаторов
-не допускается.
-
-Причины выбора
-описаны
-[ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
+Автоинкрементные
+идентификаторы
+не используются.
 
 ---
 
-## 2. Каждая таблица представляет одну сущность
+## 2. Нормализация
 
-Одна таблица
-
-↓
-
-Одна бизнес-сущность.
-
-Объединение
-нескольких сущностей
-в одну таблицу
-не допускается.
-
----
-
-## 3. Нормализация данных
-
-Структура БД
-соответствует
-третьей нормальной форме (3NF).
+Структура соответствует
+третьей нормальной форме.
 
 Дублирование данных
-допускается
-только
+допускается только
 при наличии
 обоснованной причины.
 
 ---
 
-## 4. Ограничения реализуются на уровне БД
+## 3. Ограничения
 
-База данных
-должна обеспечивать:
+База данных должна
+обеспечивать на своем уровне:
 
-- PRIMARY KEY
-
-- FOREIGN KEY
-
-- UNIQUE
-
-- CHECK
-
-- NOT NULL
-
-там,
-где это возможно.
+- PRIMARY KEY;
+- FOREIGN KEY;
+- UNIQUE;
+- CHECK;
+- NOT NULL.
 
 ---
 
-## 5. История сохраняется
+## 4. История
 
-Исторически значимые данные
-
-не удаляются
+Исторически значимые
+данные не удаляются
 без необходимости.
 
-Предпочтительным подходом
-является сохранение истории.
+---
+
+## 5. Индексы
+
+Индексы являются
+частью архитектуры.
+
+Они проектируются
+до реализации запросов
+к production-данным.
 
 ---
 
-## 6. Индексы являются частью архитектуры
+# Именование
 
-Индексы
-проектируются заранее.
+## Таблицы
 
-Создание индексов
-после появления проблем
-с производительностью
-не является
-основной стратегией.
+Используются имена
+в единственном числе:
 
----
+- user
+- subscription
+- address
+- power_outage
 
-# Общие соглашения
+## Столбцы
 
-## Именование таблиц
+Используется snake_case:
 
-Используются
-имена
-в единственном числе.
+- created_at
+- updated_at
+- house_number
+- canonical_name
 
-Пример:
+## Foreign Key
 
-```
-user
+Используется имя:
 
-subscription
+entity_id
 
-address
+Например:
 
-power_outage
-```
-
----
-
-## Именование столбцов
-
-Используется snake_case.
-
-Пример:
-
-```
-created_at
-
-updated_at
-
-house_number
-
-canonical_name
-```
-
----
-
-## Внешние ключи
-
-Имя внешнего ключа
-
-совпадает
-с именем сущности.
-
-Пример
-
-```
-user_id
-
-address_id
-
-source_id
-```
-
----
-
-## Временные поля
-
-Все основные сущности
-имеют:
-
-```
-created_at
-
-updated_at
-```
-
-При необходимости
-используется
-
-```
-deleted_at
-```
-
-или
-
-```
-is_deleted
-```
-
-в зависимости
-от выбранной стратегии.
+- user_id
+- address_id
+- source_id
 
 ---
 
 # Типы данных
 
-Предпочтительные типы PostgreSQL.
-
-| Назначение | Тип |
-|------------|-----|
+| Назначение | PostgreSQL |
+|---|---|
 | идентификатор | UUID |
 | короткий текст | VARCHAR |
 | длинный текст | TEXT |
 | дата | DATE |
 | дата и время | TIMESTAMP WITH TIME ZONE |
 | логическое значение | BOOLEAN |
-| перечисления | VARCHAR + Enum в приложении |
+| структурированная конфигурация | JSONB |
+| перечисление | VARCHAR |
+
+---
+
+# Работа со временем
+
+Все временные значения,
+представляющие конкретный
+момент времени,
+хранятся как:
+
+TIMESTAMP WITH TIME ZONE
+
+В Java используется
+java.time.
+
+Для точных моментов времени
+используется:
+
+Instant
+
+Не используются:
+
+- java.util.Date;
+- java.sql.Timestamp.
 
 ---
 
 # Миграции
 
 Изменение структуры БД
-выполняется
-только
+выполняется только
 через Liquibase.
 
 Ручное изменение
-структуры
+структуры БД
 не допускается.
-
----
-
-# Связанные документы
-
-02-DOMAIN_MODEL.md
-
-[ADR-002 — Canonical Address Model](ADR-002-Canonical-Address-Model.md)
-
-[ADR-005 — PowerOutage Event Model](adr/ADR-005-PowerOutage-Event-Model.md)
-
-[ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
 
 ---
 
 # Identity
 
-Подсистема Identity
-обеспечивает хранение данных,
-необходимых для идентификации
-и аутентификации пользователей.
-
----
-
 ## Таблица user
 
 ### Назначение
 
-Хранит учетные записи пользователей системы.
+Хранит учетные записи
+пользователей.
 
-Каждая запись
-представляет одного пользователя.
+### Поля
 
----
-
-### Первичный ключ
-
-UUID
-
-Используется
-как стабильный идентификатор пользователя.
-
----
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| email | VARCHAR | NO | UNIQUE |
+| password_hash | VARCHAR | YES | |
+| role | VARCHAR | NO | |
+| is_active | BOOLEAN | NO | DEFAULT TRUE |
+| nickname | VARCHAR | YES | |
+| about | TEXT | YES | |
+| avatar_key | VARCHAR | YES | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
 ### Основные ограничения
 
-- email является уникальным;
+- email уникален;
+- email обязателен;
+- role обязателен;
+- is_active обязателен.
 
-- пользователь
-  не может существовать
-  без email;
+password_hash может отсутствовать
+для учетной записи,
+созданной через OAuth2.
 
-- пользователь
-  может иметь
-  только одну учетную запись.
+Пароль в открытом виде
+не хранится.
 
----
-
-### Основные связи
+### Связи
 
 user
 
@@ -358,9 +213,7 @@ user
 
 subscription (1:N)
 
-↓
-
-notification (1:N)
+user
 
 ↓
 
@@ -368,149 +221,77 @@ refresh_token (1:N)
 
 ---
 
-### Индексы
-
-Обязательные:
-
-- PK(id)
-
-- UNIQUE(email)
-
-Дополнительные:
-
-- INDEX(is_active)
-
-при необходимости.
-
----
-
-### Причины проектирования
-
-Использование UUID
-позволяет:
-
-- избежать зависимости
-  от последовательностей;
-
-- безопасно использовать
-  идентификаторы
-  во внешних API;
-
-- упростить масштабирование
-  архитектуры.
-
----
-
 ## Таблица refresh_token
 
 ### Назначение
 
-Хранит Refresh Token,
-используемые
-для повторной аутентификации пользователя.
+Хранит Refresh Token
+в защищенном представлении.
 
----
+Исходное значение токена
+в базе данных не хранится.
 
-### Первичный ключ
+### Поля
 
-UUID
-
----
-
-### Основные ограничения
-
-Каждый RefreshToken:
-
-- принадлежит одному User;
-
-- имеет срок действия;
-
-- может быть отозван.
-
----
-
-### Основные связи
-
-refresh_token
-
-↓
-
-user (N:1)
-
----
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| user_id | UUID | NO | FK |
+| token_hash | VARCHAR | NO | UNIQUE |
+| expires_at | TIMESTAMP WITH TIME ZONE | NO | |
+| revoked_at | TIMESTAMP WITH TIME ZONE | YES | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
 ### Индексы
 
-PK(id)
+- PK(id);
+- UNIQUE(token_hash);
+- INDEX(user_id);
+- INDEX(expires_at).
 
-INDEX(user_id)
+### ON DELETE
 
-UNIQUE(token)
+user → refresh_token:
 
-INDEX(expires_at)
-
----
-
-### Причины проектирования
-
-Отдельная таблица
-позволяет:
-
-- поддерживать
-  несколько активных устройств;
-
-- выполнять отзыв
-  отдельных токенов;
-
-- хранить историю авторизаций
-  при необходимости.
+CASCADE
 
 ---
 
 # Address Catalog
 
-Подсистема Address Catalog
-обеспечивает хранение
-канонических адресов.
+Address Catalog хранит
+канонические адреса.
 
 Все остальные подсистемы
-используют
-исключительно
-данную модель.
-
-Подробнее:
-
-[ADR-002 — Canonical Address Model](adr/ADR-002-Canonical-Address-Model.md)
+используют канонические
+Address.
 
 ---
 
 ## Таблица region
 
-### Назначение
+### Поля
 
-Хранит перечень регионов.
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| name | VARCHAR | NO | UNIQUE |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-Используется
-для логической группировки городов.
+### Индексы
 
----
+- PK(id);
+- UNIQUE(name).
 
-### Первичный ключ
+### Связи
 
-UUID
+region
 
----
+↓
 
-### Основные ограничения
-
-- название региона уникально;
-
-- пустое название
-  не допускается.
-
----
-
-### Основные связи
+regional_district (1:N)
 
 region
 
@@ -518,24 +299,74 @@ region
 
 city (1:N)
 
+### ON DELETE
+
+region → regional_district:
+
+RESTRICT
+
+region → city:
+
+RESTRICT
+
 ---
+
+## Таблица regional_district
+
+### Назначение
+
+Хранит административно-
+муниципальные единицы
+внутри Region.
+
+### Поля
+
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| region_id | UUID | NO | FK |
+| type | VARCHAR | NO | |
+| name | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
+
+### Типы
+
+- MUNICIPAL_DISTRICT
+- MUNICIPAL_OKRUG
+- URBAN_OKRUG
+- INTRACITY_TERRITORY
+- FEDERAL_TERRITORY
+
+### Ограничения
+
+UNIQUE(region_id, type, name)
 
 ### Индексы
 
-PK(id)
+- PK(id);
+- UNIQUE(region_id, type, name);
+- INDEX(region_id).
 
-UNIQUE(name)
+### Связи
 
----
+regional_district
 
-### Причины проектирования
+↓
 
-Выделение Region
-в отдельную таблицу
+region (N:1)
 
-исключает
-дублирование данных
-и упрощает поиск.
+regional_district
+
+↓
+
+city (1:N)
+
+### ON DELETE
+
+region → regional_district:
+
+RESTRICT
 
 ---
 
@@ -543,31 +374,59 @@ UNIQUE(name)
 
 ### Назначение
 
-Хранит перечень городов.
+Хранит населенные пункты.
 
-Каждый город
-принадлежит
-одному региону.
+City всегда принадлежит
+Region.
 
----
+RegionalDistrict является
+необязательным.
 
-### Первичный ключ
+### Поля
 
-UUID
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| region_id | UUID | NO | FK |
+| regional_district_id | UUID | YES | FK |
+| name | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
----
+### Целостность
 
-### Основные ограничения
+Если regional_district_id
+задан, RegionalDistrict
+обязан принадлежать
+тому же Region.
 
-- город принадлежит одному региону;
+Это обеспечивается
+составным FOREIGN KEY.
 
-- название города
-  уникально
-  в пределах региона.
+### Уникальность
 
----
+Для City внутри RegionalDistrict:
 
-### Основные связи
+UNIQUE(regional_district_id, name)
+
+WHERE regional_district_id IS NOT NULL
+
+Для City непосредственно
+в Region:
+
+UNIQUE(region_id, name)
+
+WHERE regional_district_id IS NULL
+
+### Индексы
+
+- PK(id);
+- INDEX(region_id);
+- INDEX(regional_district_id);
+- partial UNIQUE для каждого
+  из двух вариантов принадлежности.
+
+### Связи
 
 city
 
@@ -575,27 +434,83 @@ city
 
 region (N:1)
 
+city
+
+↓
+
+regional_district (0..1)
+
+city
+
+↓
+
+city_district (1:N)
+
+city
+
 ↓
 
 street (1:N)
 
+### ON DELETE
+
+region → city:
+
+RESTRICT
+
+regional_district → city:
+
+RESTRICT
+
 ---
+
+## Таблица city_district
+
+### Назначение
+
+Хранит внутригородские
+районы или иной локальный
+районный контекст.
+
+### Поля
+
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| city_id | UUID | NO | FK |
+| name | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
+
+### Ограничения
+
+UNIQUE(city_id, name)
 
 ### Индексы
 
-PK(id)
+- PK(id);
+- UNIQUE(city_id, name);
+- INDEX(city_id).
 
-INDEX(region_id)
+### Связи
 
-UNIQUE(region_id, name)
+city_district
 
----
+↓
 
-### Причины проектирования
+city (N:1)
 
-Одинаковые названия городов
-могут существовать
-в разных регионах.
+city_district
+
+↓
+
+address (1:N)
+
+### ON DELETE
+
+city → city_district:
+
+RESTRICT
 
 ---
 
@@ -603,34 +518,39 @@ UNIQUE(region_id, name)
 
 ### Назначение
 
-Хранит каталог улиц.
+Хранит канонический
+справочник улиц.
 
-Используется
-повторно
-всеми адресами.
+Street принадлежит City,
+а не CityDistrict.
 
----
+Одна Street может
+проходить через несколько
+CityDistrict.
 
-### Первичный ключ
+### Поля
 
-UUID
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| city_id | UUID | NO | FK |
+| type | VARCHAR | NO | |
+| canonical_name | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
----
+### Ограничения
 
-### Основные ограничения
+UNIQUE(city_id, type, canonical_name)
 
-- улица принадлежит одному городу;
+### Индексы
 
-- каноническое название обязательно;
+- PK(id);
+- UNIQUE(city_id, type, canonical_name);
+- INDEX(city_id);
+- INDEX(canonical_name).
 
-- одна улица
-  существует
-  в единственном экземпляре
-  внутри города.
-
----
-
-### Основные связи
+### Связи
 
 street
 
@@ -638,33 +558,17 @@ street
 
 city (N:1)
 
+street
+
 ↓
 
 address (1:N)
 
----
+### ON DELETE
 
-### Индексы
+city → street:
 
-PK(id)
-
-INDEX(city_id)
-
-INDEX(canonical_name)
-
-UNIQUE(city_id, canonical_name)
-
----
-
-### Причины проектирования
-
-Отдельная таблица Street:
-
-- исключает дублирование;
-
-- позволяет повторно использовать улицы;
-
-- значительно ускоряет поиск.
+RESTRICT
 
 ---
 
@@ -672,36 +576,114 @@ UNIQUE(city_id, canonical_name)
 
 ### Назначение
 
-Хранит
-канонические адреса.
+Хранит канонические адреса.
 
-Является
-основной таблицей,
-используемой
+Address является
+основной единицей
 Matching Engine.
 
----
+### Поля
 
-### Первичный ключ
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| city_id | UUID | NO | технический (FK) |
+| street_id | UUID | NO | FK |
+| city_district_id | UUID | YES | FK |
+| house_number | VARCHAR | NO | |
+| house_addition | VARCHAR | YES | |
+| canonical_house | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-UUID
+### Техническое поле city_id
 
----
+city_id является
+техническим persistence-атрибутом
+и не является частью
+Domain Model.
 
-### Основные ограничения
+Его назначение — исключительно
+служить carrier
+для composite FOREIGN KEY,
+обеспечивающих адресную целостность
+на уровне БД.
 
-Каждый Address:
+city_id не участвует
+в канонической идентичности Address
+и не используется
+в бизнес-логике проекта.
+Дублирует City,
+уже определяемый через Street.
 
-- принадлежит одной улице;
+### Целостность
 
-- содержит один дом;
+Если city_district_id задан,
+CityDistrict обязан
+принадлежать тому же City,
+к которому относится Street.
 
-- существует
-  в единственном экземпляре.
+Целостность обеспечивается
+на уровне БД
+двумя composite FOREIGN KEY,
+использующими техническое поле
+city_id:
 
----
+- (city_id, street_id)
+  → street(city_id, id);
+- (city_id, city_district_id)
+  → city_district(city_id, id).
 
-### Основные связи
+Дополнительно сохраняются
+обычные FOREIGN KEY:
+
+- street_id → street(id);
+- city_district_id → city_district(id).
+
+Так, значение street_id
+может ссылаться только на Street
+того же City,
+а city_district_id —
+только на CityDistrict
+того же City,
+которому принадлежит Street.
+
+### Уникальность
+
+Для Address с CityDistrict:
+
+UNIQUE(
+street_id,
+city_district_id,
+canonical_house
+)
+
+Для Address без CityDistrict:
+
+UNIQUE(
+street_id,
+canonical_house
+)
+
+Для реализации используются
+частичные UNIQUE INDEX.
+
+### Индексы
+
+- PK(id);
+- INDEX(street_id);
+- INDEX(city_district_id);
+- INDEX(canonical_house);
+- supporting UNIQUE INDEX
+  street(city_id, id);
+- supporting UNIQUE INDEX
+  city_district(city_id, id);
+- partial UNIQUE INDEX
+  для Address с CityDistrict;
+- partial UNIQUE INDEX
+  для Address без CityDistrict.
+
+### Связи
 
 address
 
@@ -709,44 +691,37 @@ address
 
 street (N:1)
 
+address
+
+↓
+
+city_district (0..1)
+
+address
+
 ↓
 
 subscription (1:N)
+
+address
 
 ↓
 
 power_outage_address (1:N)
 
----
+### ON DELETE
 
-### Индексы
+street → address:
 
-PK(id)
+RESTRICT
 
-INDEX(street_id)
+city_district → address:
 
-INDEX(canonical_house)
-
-UNIQUE(street_id, canonical_house)
+RESTRICT
 
 ---
 
-### Причины проектирования
-
-Уникальность
-
-(street_id + canonical_house)
-
-исключает
-создание дубликатов адресов.
-
-Использование
-канонического номера дома
-
-ускоряет поиск
-и сопоставление.
-
----
+# TransformerStation
 
 ## Таблица transformer_station
 
@@ -755,135 +730,71 @@ UNIQUE(street_id, canonical_house)
 Хранит перечень
 трансформаторных подстанций.
 
-Используется
-как дополнительный критерий
-сопоставления.
+### Поля
 
----
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| name | VARCHAR | NO | UNIQUE |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-### Первичный ключ
+### Индексы
 
-UUID
+- PK(id);
+- UNIQUE(name).
 
----
-
-### Основные ограничения
-
-- название подстанции уникально;
-
-- допускается отсутствие
-  связи
-  с конкретным адресом.
-
----
-
-### Основные связи
+### Связи
 
 transformer_station
 
 ↓
 
-subscription (M:N)
+subscription_transformer_station (1:N)
+
+transformer_station
 
 ↓
 
-power_outage_address (N:1)
-
----
-
-### Индексы
-
-PK(id)
-
-UNIQUE(name)
-
----
-
-### Причины проектирования
-
-Выделение TransformerStation
-в отдельную таблицу
-
-позволяет:
-
-- избежать дублирования;
-
-- использовать одну подстанцию
-  для множества подписок;
-
-- поддерживать различные
-  способы обозначения
-  подстанций.
+power_outage_address (1:N)
 
 ---
 
 # Subscription
-
-Подсистема Subscription
-обеспечивает хранение
-подписок пользователей
-на мониторинг отключений электроэнергии.
-
-Subscription связывает
-пользователя,
-адрес
-и параметры мониторинга.
-
----
 
 ## Таблица subscription
 
 ### Назначение
 
 Хранит подписки пользователей
-на мониторинг конкретных адресов.
+на мониторинг Address.
 
-Каждая запись
-описывает
-одну независимую подписку.
+### Поля
 
----
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| user_id | UUID | NO | FK |
+| address_id | UUID | NO | FK |
+| monitoring_start | TIMESTAMP WITH TIME ZONE | NO | |
+| monitoring_end | TIMESTAMP WITH TIME ZONE | NO | |
+| is_active | BOOLEAN | NO | DEFAULT TRUE |
+| service_access_until | TIMESTAMP WITH TIME ZONE | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-### Поля Service Access
+### Ограничения
 
-Subscription хранит
-момент окончания
-предоставленного доступа
-к сервису.
+CHECK(monitoring_start < monitoring_end)
 
-Поле:
+### Индексы
 
-service_access_until
+- PK(id);
+- INDEX(user_id, is_active);
+- INDEX(address_id, is_active);
+- INDEX(monitoring_start, monitoring_end).
 
-Тип:
-
-TIMESTAMP WITH TIME ZONE
-
----
-
-### Первичный ключ
-
-UUID
-
----
-
-### Основные ограничения
-
-Каждая Subscription:
-
-- принадлежит одному User;
-
-- содержит один Address;
-
-- имеет период мониторинга;
-
-- имеет статус активности
-
-- имеет момент окончания предоставленного Service Access.
-
----
-
-### Основные связи
+### Связи
 
 subscription
 
@@ -891,54 +802,33 @@ subscription
 
 user (N:1)
 
+subscription
+
 ↓
 
 address (N:1)
 
-↓
-
-notification (1:N)
+subscription
 
 ↓
 
 subscription_transformer_station (1:N)
 
----
+subscription
 
-### Индексы
+↓
 
-PK(id)
+notification (1:N)
 
-INDEX(user_id)
+### ON DELETE
 
-INDEX(address_id)
+user → subscription:
 
-INDEX(is_active)
+RESTRICT
 
-Составной индекс:
+address → subscription:
 
-(user_id, is_active)
-
----
-
-### Причины проектирования
-
-Subscription
-является самостоятельной сущностью.
-
-Один пользователь
-
-может иметь
-
-несколько подписок
-
-на разные адреса.
-
-Несколько пользователей
-
-могут использовать
-
-один Address.
+RESTRICT
 
 ---
 
@@ -946,131 +836,87 @@ Subscription
 
 ### Назначение
 
-Связывает подписку
-с одной или несколькими
-трансформаторными подстанциями.
+Реализует M:N
+между Subscription
+и TransformerStation.
 
-Используется
-для реализации связи
-Many-to-Many.
+### Поля
 
----
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| subscription_id | UUID | NO | FK |
+| transformer_station_id | UUID | NO | FK |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-### Первичный ключ
+### Ограничения
 
-UUID
-
----
-
-### Основные ограничения
-
-Каждая запись:
-
-- принадлежит одной Subscription;
-
-- содержит одну TransformerStation.
-
-Повторяющиеся пары
-
-(subscription_id,
-transformer_station_id)
-
-не допускаются.
-
----
-
-### Основные связи
-
-subscription_transformer_station
-
-↓
-
-subscription (N:1)
-
-↓
-
-transformer_station (N:1)
-
----
+UNIQUE(
+subscription_id,
+transformer_station_id
+)
 
 ### Индексы
 
-PK(id)
+- PK(id);
+- UNIQUE(subscription_id, transformer_station_id);
+- INDEX(subscription_id);
+- INDEX(transformer_station_id).
 
-INDEX(subscription_id)
+### ON DELETE
 
-INDEX(transformer_station_id)
+subscription → subscription_transformer_station:
 
-UNIQUE(subscription_id,
-transformer_station_id)
+CASCADE
 
----
+transformer_station →
+subscription_transformer_station:
 
-### Причины проектирования
-
-Отдельная таблица связи
-позволяет:
-
-- поддерживать
-  несколько ТП
-  у одной подписки;
-
-- повторно использовать
-  одну TransformerStation;
-
-- избежать
-  хранения массива идентификаторов
-  внутри Subscription.
+RESTRICT
 
 ---
 
 # Source
 
-Подсистема Source
-обеспечивает хранение
-конфигурации внешних источников данных.
-
-Source описывает,
-откуда система получает информацию,
-но не содержит
-логики обработки данных.
-
-Подробнее:
-
-[ADR-004 — OutageProvider Architecture](adr/ADR-004-OutageProvider-Architecture.md)
-
----
-
 ## Таблица source
 
 ### Назначение
 
-Хранит перечень
-внешних источников данных,
-используемых системой
-для поиска информации
-о плановых отключениях электроэнергии.
+Хранит конфигурацию
+внешнего источника.
 
----
+### Поля
 
-### Первичный ключ
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| name | VARCHAR | NO | UNIQUE |
+| source_type | VARCHAR | NO | |
+| provider_type | VARCHAR | NO | |
+| configuration | JSONB | NO | |
+| schedule | VARCHAR | NO | |
+| is_active | BOOLEAN | NO | DEFAULT TRUE |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-UUID
+### Ограничения
 
----
+- name уникален;
+- configuration не содержит
+  секреты;
+- source_type обязателен;
+- provider_type обязателен;
+- schedule обязателен.
 
-### Основные ограничения
+### Индексы
 
-Каждый Source:
+- PK(id);
+- UNIQUE(name);
+- INDEX(is_active);
+- INDEX(source_type).
 
-- имеет уникальное имя;
-- имеет один тип источника;
-- имеет статус активности;
-- содержит параметры подключения.
-
----
-
-### Основные связи
+### Связи
 
 source
 
@@ -1078,115 +924,45 @@ source
 
 power_outage (1:N)
 
----
+### ON DELETE
 
-### Индексы
+source → power_outage:
 
-PK(id)
-
-UNIQUE(name)
-
-INDEX(is_active)
-
-INDEX(source_type)
-
----
-
-### Причины проектирования
-
-Выделение Source
-в отдельную таблицу
-
-позволяет:
-
-- управлять источниками
-  без изменения кода;
-
-- временно отключать
-  отдельные источники;
-
-- вести аудит
-  происхождения каждого PowerOutage;
-
-- использовать
-  различные Provider
-  для разных источников.
-
----
-
-### Особенности хранения
-
-Source хранит
-только конфигурацию источника.
-
-Полученные данные
-в данной таблице
-не сохраняются.
-
-Информация об отключениях
-после обработки
-попадает
-в PowerOutage.
+RESTRICT
 
 ---
 
 # PowerOutage
 
-Подсистема PowerOutage
-обеспечивает хранение
-событий плановых отключений
-электроэнергии.
-
-PowerOutage является
-центральной таблицей
-предметной области.
-
-Подробнее:
-
-[ADR-005 — PowerOutage Event Model](adr/ADR-005-PowerOutage-Event-Model.md)
-
----
-
 ## Таблица power_outage
 
-### Назначение
+### Поля
 
-Хранит события
-плановых отключений электроэнергии.
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| source_id | UUID | NO | FK |
+| start_time | TIMESTAMP WITH TIME ZONE | NO | |
+| end_time | TIMESTAMP WITH TIME ZONE | NO | |
+| reason | TEXT | NO | |
+| status | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-Каждая запись
-представляет
-одно событие,
-имеющее:
+### Ограничения
 
-- общий временной интервал;
-- общую причину;
-- один источник данных;
-- один жизненный цикл.
+CHECK(start_time < end_time)
 
----
+### Индексы
 
-### Первичный ключ
+- PK(id);
+- INDEX(source_id);
+- INDEX(start_time);
+- INDEX(end_time);
+- INDEX(status);
+- INDEX(start_time, end_time).
 
-UUID
-
----
-
-### Основные ограничения
-
-Каждый PowerOutage:
-
-- принадлежит одному Source;
-
-- имеет время начала;
-
-- имеет время окончания;
-
-- имеет состояние события.
-
----
-
-### Основные связи
+### Связи
 
 power_outage
 
@@ -1194,98 +970,66 @@ power_outage
 
 source (N:1)
 
+power_outage
+
 ↓
 
 power_outage_address (1:N)
+
+power_outage
 
 ↓
 
 notification (1:N)
 
----
+### ON DELETE
 
-### Индексы
+source → power_outage:
 
-PK(id)
-
-INDEX(source_id)
-
-INDEX(start_time)
-
-INDEX(end_time)
-
-INDEX(status)
-
-Составной индекс:
-
-(start_time, end_time)
+RESTRICT
 
 ---
 
-### Причины проектирования
-
-Выделение PowerOutage
-в отдельную таблицу
-
-позволяет:
-
-- избежать дублирования
-  общей информации;
-
-- хранить историю изменений;
-
-- использовать
-  одно событие
-  для множества адресов;
-
-- эффективно выполнять поиск
-  по времени отключения.
-
----
+# PowerOutageAddress
 
 ## Таблица power_outage_address
 
 ### Назначение
 
-Связывает
-PowerOutage
-с конкретными адресами.
+Связывает PowerOutage
+с Address.
 
-Представляет таблицу связи
-с дополнительными атрибутами.
+Дополнительно хранит
+TransformerStation,
+если она известна.
 
----
+### Поля
 
-### Первичный ключ
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| power_outage_id | UUID | NO | FK |
+| address_id | UUID | NO | FK |
+| transformer_station_id | UUID | YES | FK |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-UUID
+### Ограничения
 
----
+UNIQUE(
+power_outage_id,
+address_id
+)
 
-### Основные ограничения
+### Индексы
 
-Каждая запись:
+- PK(id);
+- UNIQUE(power_outage_id, address_id);
+- INDEX(power_outage_id);
+- INDEX(address_id);
+- INDEX(transformer_station_id).
 
-- принадлежит одному PowerOutage;
-
-- содержит один Address;
-
-- может содержать
-  одну TransformerStation;
-
-- не существует
-  вне PowerOutage.
-
-Повторяющиеся пары
-
-(power_outage_id,
-address_id)
-
-не допускаются.
-
----
-
-### Основные связи
+### Связи
 
 power_outage_address
 
@@ -1293,291 +1037,271 @@ power_outage_address
 
 power_outage (N:1)
 
+power_outage_address
+
 ↓
 
 address (N:1)
 
+power_outage_address
+
 ↓
 
-transformer_station (N:1)
+transformer_station (0..1)
 
----
+### ON DELETE
 
-### Индексы
+power_outage → power_outage_address:
 
-PK(id)
+CASCADE
 
-INDEX(power_outage_id)
+address → power_outage_address:
 
-INDEX(address_id)
+RESTRICT
 
-INDEX(transformer_station_id)
+transformer_station →
+power_outage_address:
 
-UNIQUE(power_outage_id,
-address_id)
-
----
-
-### Причины проектирования
-
-Использование отдельной таблицы
-позволяет:
-
-- хранить
-  множество адресов
-  внутри одного события;
-
-- исключить
-  дублирование информации
-  о времени,
-  причине
-  и источнике;
-
-- хранить
-  TransformerStation
-  отдельно
-  для каждого адреса;
-
-- эффективно выполнять
-  Matching Engine.
-
----
-
-### Особенности хранения
-
-TransformerStation
-
-является необязательной.
-
-Если информация
-о подстанции
-отсутствует
-в источнике,
-
-поле
-
-transformer_station_id
-
-может иметь значение NULL.
-
-Это соответствует
-принятой архитектуре
-Matching Engine.
+RESTRICT
 
 ---
 
 # Notification
 
-Подсистема Notification
-обеспечивает хранение
-истории уведомлений пользователей.
-
-Notification представляет
-результат успешного сопоставления
-PowerOutage
-и Subscription.
-
-Подробнее:
-
-[ADR-003 — Outage Processing Pipeline](adr/ADR-003-Outage-Processing-Pipeline.md)
-
-[ADR-006 — Matching Engine](adr/ADR-006-Matching-Engine.md)
-
----
-
 ## Таблица notification
 
 ### Назначение
 
-Хранит уведомления,
-созданные системой
-для пользователей.
+Хранит историю уведомлений,
+созданных после Match.
 
-Каждая запись
-представляет
-одно уведомление
-о конкретном событии отключения.
+### Поля
 
----
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| subscription_id | UUID | NO | FK |
+| power_outage_id | UUID | NO | FK |
+| message | TEXT | NO | |
+| status | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-### Первичный ключ
+### Ограничения
 
-UUID
+UNIQUE(
+subscription_id,
+power_outage_id
+)
 
----
+### Индексы
 
-### Основные ограничения
+- PK(id);
+- UNIQUE(subscription_id, power_outage_id);
+- INDEX(subscription_id);
+- INDEX(power_outage_id);
+- INDEX(status).
 
-Каждый Notification:
-
-- принадлежит одному User;
-
-- относится к одной Subscription;
-
-- относится к одному PowerOutage;
-
-- имеет статус доставки.
-
----
-
-### Основные связи
+### Связи
 
 notification
 
 ↓
 
-user (N:1)
-
-↓
-
 subscription (N:1)
+
+notification
 
 ↓
 
 power_outage (N:1)
 
----
+User определяется
+через Subscription.
 
-### Индексы
+user_id в Notification
+не хранится.
 
-PK(id)
+### ON DELETE
 
-INDEX(user_id)
-
-INDEX(subscription_id)
-
-INDEX(power_outage_id)
-
-INDEX(status)
-
-INDEX(created_at)
-
-UNIQUE(subscription_id, power_outage_id)
-
----
-
-### Причины проектирования
-
-Отдельная таблица Notification
-позволяет:
-
-- хранить историю уведомлений;
-
-- исключить повторную отправку;
-
-- отслеживать статус доставки;
-
-- выполнять аудит действий системы;
-
-- анализировать эффективность доставки.
-
----
-
-### Особенности хранения
-
-Notification
-не содержит
-механизмов доставки.
-
-Email,
-Telegram,
-Push
-являются инфраструктурой
-и реализуются
-Notification Engine.
-
-База данных
-хранит
-только результат
-предметной области.
-
----
-
-# Общие рекомендации по связям
-
-## Использование FOREIGN KEY
-
-Все связи
-между таблицами
-должны быть реализованы
-через внешние ключи.
-
----
-
-## Стратегия ON DELETE
-
-По умолчанию
-используется
+subscription → notification:
 
 RESTRICT
 
-для предотвращения
-случайной потери данных.
+power_outage → notification:
 
-CASCADE
-применяется
-только
-для таблиц связи,
-где удаление родительской записи
-не должно оставлять
-"висячие" записи.
+RESTRICT
+
+### Retry
+
+Notification не удаляется
+при ошибке доставки.
+
+Механизм Retry
+не хранится в текущей
+модели базы данных.
+
+Retry Policy,
+планирование повторных попыток
+и история попыток доставки
+будут определены
+при проектировании
+Notification Engine.
 
 ---
 
-## Стратегия ON UPDATE
+# Общая стратегия ON DELETE
 
-Используется
+По умолчанию используется:
 
-RESTRICT.
+RESTRICT
 
-Первичные ключи
+CASCADE применяется
+только когда дочерняя запись
+не имеет самостоятельного
+жизненного цикла.
+
+### CASCADE
+
+- user → refresh_token;
+- subscription →
+  subscription_transformer_station;
+- power_outage →
+  power_outage_address.
+
+### RESTRICT
+
+Остальные доменные связи.
+
+---
+
+# Общая стратегия ON UPDATE
+
+Используется:
+
+RESTRICT
+
+Primary Key
 не изменяются.
 
 ---
 
-# Общие рекомендации по индексам
+# Адресная модель
 
-Индексы создаются
-не только
-для внешних ключей,
-но и
-для наиболее частых сценариев поиска.
+Канонический контекст:
 
-Обязательные категории индексов:
+Region
 
-- PRIMARY KEY;
+↓
 
-- UNIQUE;
+RegionalDistrict (0..1)
 
-- FOREIGN KEY;
+↓
 
-- поля фильтрации;
+City
 
-- поля сортировки;
+↓
 
-- составные индексы
-  для сложных запросов.
+Street
 
-Создание индексов
-после появления проблем
-с производительностью
-не является основной стратегией.
+↓
+
+Address
+
+Address
+
+↓
+
+CityDistrict (0..1)
+
+CityDistrict принадлежит City.
+
+Street принадлежит City.
+
+CityDistrict не является
+родителем Street.
 
 ---
+
+# Каноническая идентичность
+
+## RegionalDistrict
+
+Region + Type + Name
+
+## City
+
+Если RegionalDistrict задан:
+
+RegionalDistrict + Name
+
+Если RegionalDistrict отсутствует:
+
+Region + Name
+
+## CityDistrict
+
+City + Name
+
+## Street
+
+City + StreetType + CanonicalName
+
+## Address
+
+Street + CityDistrict + CanonicalHouse
+
+---
+
+# Строковый поиск
+
+LIKE/ILIKE допускается
+только для поиска кандидатов.
+
+Строковый поиск:
+
+- не является Matching;
+- не создает Match;
+- не заменяет каноническую модель.
+
+После CandidateFinder
+Matching Engine работает
+с каноническими объектами.
+
+---
+
+# Безопасность
+
+Секреты не хранятся
+в исходном коде,
+Git или открытой
+конфигурации.
+
+К секретам относятся:
+
+- database credentials;
+- JWT Secret;
+- OAuth2 Client Secret;
+- SMTP credentials;
+- MinIO credentials.
+
+Source.configuration
+не должна содержать
+секретные значения.
+
+---
+
+# Связанные документы
+
+- [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
+- [ADR-002 — Canonical Address Model](adr/ADR-002-Canonical-Address-Model.md)
+- [ADR-005 — PowerOutage Event Model](adr/ADR-005-PowerOutage-Event-Model.md)
+- [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
+- [07-SECURITY](07-SECURITY.md)
 
 ---
 
 # См. также
-
-## Документы
-
-- [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
-- [04-PARSER](04-PARSER.md)
-
-## ADR
-
-- [ADR-002 — Canonical Address Model](adr/ADR-002-Canonical-Address-Model.md)
-- [ADR-005 — PowerOutage Event Model](adr/ADR-005-PowerOutage-Event-Model.md)
 
 ## Диаграммы
 
@@ -1589,4 +1313,3 @@ RESTRICT.
 | ⬅ Предыдущий | 🏠 README | ➡ Следующий |
 |-------------|-----------|-------------|
 | [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md) | [README](README.md) | [04-PARSER](04-PARSER.md) |
-

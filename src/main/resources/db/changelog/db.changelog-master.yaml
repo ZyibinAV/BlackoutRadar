@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - include:
+      file: classpath:/db/changelog/001-identity.sql
+  - include:
+      file: classpath:/db/changelog/002-address-catalog.sql
+  - include:
+      file: classpath:/db/changelog/003-transformer-station.sql
+  - include:
+      file: classpath:/db/changelog/004-subscription.sql
+  - include:
+      file: classpath:/db/changelog/005-source.sql
+  - include:
+      file: classpath:/db/changelog/006-power-outage.sql
+  - include:
+      file: classpath:/db/changelog/007-notification.sql

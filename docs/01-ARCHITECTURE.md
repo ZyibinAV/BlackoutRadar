@@ -219,6 +219,57 @@ BlackoutRadar представляет собой
 
 ---
 
+## Persistence
+
+Persistence является частью Infrastructure Layer.
+
+Persistence отвечает за взаимодействие
+между предметной областью
+и системой хранения данных.
+
+Domain Layer не зависит
+от JPA,
+Hibernate,
+Spring Data JPA
+или PostgreSQL.
+
+Взаимодействие
+с хранилищем выполняется
+через порты,
+определенные
+внутренними слоями системы.
+
+Infrastructure реализует
+эти порты
+через Persistence Adapters.
+
+Для PostgreSQL
+используются:
+
+- Spring Data JPA;
+- Hibernate;
+- PostgreSQL JDBC Driver.
+
+Persistence Entity
+отделены
+от Domain Entity.
+
+Mapping между
+Domain Model
+и Persistence Model
+выполняется
+через отдельный Mapper.
+
+Для преобразования моделей
+используется MapStruct.
+
+Изменение структуры
+базы данных
+выполняется
+только через Liquibase.
+
+---
+
 # Взаимодействие подсистем
 
 External Sources

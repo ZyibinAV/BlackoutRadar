@@ -1,80 +1,264 @@
-@startuml BlackoutRadar_DatabaseER
+@startuml
+title BlackoutRadar — Database ER Model
 
-title BlackoutRadar — Database ER Diagram
+hide methods
+hide stereotypes
 
-left to right direction
-
-hide circle
-skinparam shadowing false
 skinparam linetype ortho
-skinparam defaultFontName Arial
-
-package "Identity" {
-
-entity "user" as user
-entity "refresh_token" as refresh_token
-
+skinparam entity {
+    BackgroundColor White
+    BorderColor Black
 }
 
-package "Address Catalog" {
-
-entity region
-entity city
-entity street
-entity address
-entity transformer_station
-
+entity "user" as user {
+    * id : UUID <<PK>>
+    --
+    * email : VARCHAR <<UK>>
+    password_hash : VARCHAR
+    * role : VARCHAR
+    * is_active : BOOLEAN
+    nickname : VARCHAR
+    about : TEXT
+    avatar_key : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
 }
 
-package "Monitoring" {
-
-entity subscription
-entity subscription_transformer_station
-
+entity "refresh_token" as refresh_token {
+    * id : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * token_hash : VARCHAR <<UK>>
+    * expires_at : TIMESTAMPTZ
+    revoked_at : TIMESTAMPTZ
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
 }
 
-package "Outages" {
-
-entity source
-entity power_outage
-entity power_outage_address
-
+entity "region" as region {
+    * id : UUID <<PK>>
+    --
+    * name : VARCHAR <<UK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
 }
 
-package "Notifications" {
-
-entity notification
-
+entity "regional_district" as regional_district {
+    * id : UUID <<PK>>
+    --
+    * region_id : UUID <<FK>>
+    * type : VARCHAR
+    * name : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(region_id, type, name)
 }
 
-region ||--o{ city
+entity "city" as city {
+    * id : UUID <<PK>>
+    --
+    * region_id : UUID <<FK>>
+    regional_district_id : UUID <<FK>>
+    * name : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(regional_district_id, name)
+    UK(region_id, name) WHERE district IS NULL
+}
 
-city ||--o{ street
+entity "city_district" as city_district {
+    * id : UUID <<PK>>
+    --
+    * city_id : UUID <<FK>>
+    * name : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(city_id, name)
+}
 
-street ||--o{ address
+entity "street" as street {
+    * id : UUID <<PK>>
+    --
+    * city_id : UUID <<FK>>
+    * type : VARCHAR
+    * canonical_name : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(city_id, type, canonical_name)
+}
 
-user ||--o{ refresh_token
+entity "address" as address {
+    * id : UUID <<PK>>
+    --
+    * street_id : UUID <<FK>>
+    city_district_id : UUID <<FK>>
+    * house_number : VARCHAR
+    house_addition : VARCHAR
+    * canonical_house : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(street_id, city_district_id, canonical_house)
+    UK(street_id, canonical_house) WHERE district IS NULL
+}
 
-user ||--o{ subscription
+entity "transformer_station" as transformer_station {
+    * id : UUID <<PK>>
+    --
+    * name : VARCHAR <<UK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+}
 
-user ||--o{ notification
+entity "subscription" as subscription {
+    * id : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * address_id : UUID <<FK>>
+    * monitoring_start : TIMESTAMPTZ
+    * monitoring_end : TIMESTAMPTZ
+    * is_active : BOOLEAN
+    * service_access_until : TIMESTAMPTZ
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    CHECK(monitoring_start < monitoring_end)
+}
 
-address ||--o{ subscription
+entity "subscription_transformer_station" as subscription_ts {
+    * id : UUID <<PK>>
+    --
+    * subscription_id : UUID <<FK>>
+    * transformer_station_id : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(subscription_id, transformer_station_id)
+}
 
-subscription ||--o{ subscription_transformer_station
+entity "source" as source {
+    * id : UUID <<PK>>
+    --
+    * name : VARCHAR <<UK>>
+    * source_type : VARCHAR
+    * provider_type : VARCHAR
+    * configuration : JSONB
+    * schedule : VARCHAR
+    * is_active : BOOLEAN
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+}
 
-transformer_station ||--o{ subscription_transformer_station
+entity "power_outage" as power_outage {
+    * id : UUID <<PK>>
+    --
+    * source_id : UUID <<FK>>
+    * start_time : TIMESTAMPTZ
+    * end_time : TIMESTAMPTZ
+    * reason : TEXT
+    * status : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    CHECK(start_time < end_time)
+}
 
-source ||--o{ power_outage
+entity "power_outage_address" as outage_address {
+    * id : UUID <<PK>>
+    --
+    * power_outage_id : UUID <<FK>>
+    * address_id : UUID <<FK>>
+    transformer_station_id : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(power_outage_id, address_id)
+}
 
-power_outage ||--o{ power_outage_address
+entity "notification" as notification {
+    * id : UUID <<PK>>
+    --
+    * subscription_id : UUID <<FK>>
+    * power_outage_id : UUID <<FK>>
+    * message : TEXT
+    * status : VARCHAR
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    --
+    UK(subscription_id, power_outage_id)
+}
 
-address ||--o{ power_outage_address
+' Identity
 
-transformer_station ||--o{ power_outage_address
+user ||--o{ refresh_token : "owns"
+user ||--o{ subscription : "owns"
 
-subscription ||--o{ notification
+' Address Catalog
 
-power_outage ||--o{ notification
+region ||--o{ regional_district : "contains"
+region ||--o{ city : "contains"
+
+regional_district |o--o{ city : "contains"
+
+city ||--o{ city_district : "contains"
+city ||--o{ street : "contains"
+
+street ||--o{ address : "contains"
+city_district |o--o{ address : "refines"
+
+' Monitoring
+
+address ||--o{ subscription : "monitored by"
+
+subscription ||--o{ subscription_ts : "selects"
+transformer_station ||--o{ subscription_ts : "selected by"
+
+' Outage
+
+source ||--o{ power_outage : "produces"
+
+power_outage ||--|{ outage_address : "affects"
+address ||--o{ outage_address : "affected address"
+
+transformer_station |o--o{ outage_address : "associated with"
+
+' Notification
+
+subscription ||--o{ notification : "generates"
+power_outage ||--o{ notification : "causes"
+
+note "regional_district_id" as city_fk_note
+city_fk_note .. city
+
+note right of city
+  regional_district_id = NULL:
+  City принадлежит Region напрямую.
+
+  regional_district_id != NULL:
+  City принадлежит RegionalDistrict.
+
+  В обоих случаях
+  region_id является обязательным.
+end note
+
+note right of address
+  city_district_id является
+  необязательным.
+
+  Если задан, CityDistrict
+  должен принадлежать тому же City,
+  что и Street.
+end note
+
+note bottom of notification
+  user_id отсутствует.
+
+  Пользователь определяется
+  через subscription.user_id.
+end note
 
 @enduml
