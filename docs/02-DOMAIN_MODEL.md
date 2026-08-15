@@ -164,12 +164,8 @@ City (0..N)
 
 Каждый Region:
 
-- имеет уникальное название;
-- может содержать
-  RegionalDistrict;
-- может содержать City,
-  которые не входят
-  в RegionalDistrict.
+- имеет идентификатор;
+- имеет название.
 
 ---
 
@@ -624,15 +620,15 @@ Notification (0..N)
 
 - принадлежит одному User;
 - относится к одному Address;
-- имеет начало и конец
-  периода мониторинга;
-- monitoringStart < monitoringEnd;
-- может содержать
-  несколько TransformerStation;
-- может существовать
-  без TransformerStation;
-- хранит момент окончания
-  Service Access.
+- имеет monitoringStart;
+- имеет monitoringEnd;
+- `monitoringStart < monitoringEnd`;
+- имеет состояние активности;
+- имеет serviceAccessUntil;
+- может содержать несколько
+  TransformerStation;
+- не содержит одну и ту же
+  TransformerStation более одного раза.
 
 Истечение Service Access
 не изменяет автоматически
@@ -809,6 +805,26 @@ Matching Engine.
 Match не сохраняется
 в базе данных.
 
+### Ответственность
+
+Match отвечает за:
+
+- представление подтвержденного
+  соответствия Subscription
+  и PowerOutage;
+- передачу результата
+  в последующий
+  Application / Processing Flow.
+
+### Не отвечает
+
+Match не отвечает за:
+
+- создание Notification;
+- отправку уведомлений;
+- хранение истории;
+- поиск совпадений.
+
 ---
 
 # Notification
@@ -819,8 +835,37 @@ Match не сохраняется
 уведомить пользователя
 о найденном совпадении.
 
-Notification создается
-после успешного Match.
+Notification является
+самостоятельным доменным объектом.
+
+Notification не имеет
+технической зависимости
+от Match.
+
+Правило:
+
+> Notification создается только
+> после успешного Match.
+
+является правилом
+Application / Processing Flow.
+
+Таким образом:
+
+Match
+
+↓
+
+Application / Processing Flow
+
+↓
+
+Notification
+
+Match не является
+полем, зависимостью
+или частью состояния
+Notification.
 
 ### Ответственность
 
@@ -841,8 +886,11 @@ Notification не отвечает за:
 - поиск отключений;
 - Matching;
 - получение внешних данных;
+- создание Match;
 - конкретный канал доставки;
-- Retry-механику.
+- Retry-механику;
+- историю попыток доставки;
+- планирование повторной обработки.
 
 ### Основные связи
 
@@ -876,6 +924,127 @@ Subscription + PowerOutage
 создается не более одного
 Notification.
 
+### Notification Status
+
+Notification имеет одно
+из следующих состояний:
+
+- PENDING;
+- PROCESSING;
+- SENT;
+- FAILED.
+
+### Значение состояний
+
+#### PENDING
+
+Notification создан
+и ожидает обработки
+Notification Engine.
+
+Это исходное состояние
+нового Notification.
+
+#### PROCESSING
+
+Notification Engine
+принял Notification
+в обработку.
+
+PROCESSING означает
+состояние обработки
+Notification Engine,
+а не состояние
+конкретного канала
+или Delivery Adapter.
+
+PROCESSING не содержит
+информации о:
+
+- канале доставки;
+- Adapter;
+- попытке доставки;
+- номере попытки;
+- количестве повторов;
+- времени следующей попытки;
+- технической ошибке доставки.
+
+#### SENT
+
+Notification Engine
+завершил обработку
+Notification успешно.
+
+SENT означает,
+что операция доставки
+завершилась успешно.
+
+SENT не означает
+гарантированное прочтение
+или фактическое ознакомление
+пользователя с сообщением.
+
+#### FAILED
+
+Обработка Notification
+завершилась ошибкой.
+
+Notification при этом
+не удаляется
+и сохраняется в истории.
+
+FAILED не определяет
+окончательную судьбу
+Notification.
+
+Notification Engine
+может принять решение
+о повторной обработке
+в соответствии
+с собственной Retry Policy.
+
+### Lifecycle
+
+Основной lifecycle:
+
+PENDING
+
+↓
+
+PROCESSING
+
+↓
+
+SENT
+
+или
+
+PROCESSING
+
+↓
+
+FAILED
+
+Notification Engine
+может повторно принять
+FAILED Notification
+в обработку.
+
+Такое повторное принятие
+не создает новый Notification
+и не изменяет инвариант
+уникальности:
+
+Subscription + PowerOutage.
+
+Повторная обработка
+и переход FAILED → PROCESSING
+как механизм Retry
+являются ответственностью
+Notification Engine,
+а не отдельным бизнес-правилом
+Notification Domain.
+
 ### Ошибка доставки
 
 Ошибка доставки
@@ -885,10 +1054,11 @@ Notification остается
 доступным Notification Engine
 для возможной повторной обработки.
 
-Конкретная Retry Policy,
-планирование и история попыток
-не являются частью текущей
-модели Notification.
+Retry Policy,
+планирование повторных попыток
+и история попыток доставки
+не являются частью
+текущей модели Notification.
 
 ---
 
@@ -963,3 +1133,9 @@ Domain Model не зависит
 - [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
 - [01-ARCHITECTURE](01-ARCHITECTURE.md)
 - [03-DATABASE](03-DATABASE.md)
+
+---
+
+| ⬅ Предыдущий | 🏠 README | ➡ Следующий |
+|-------------|-----------|-------------|
+| [00.5-GLOSSARY](00.5-GLOSSARY.md) | [README](README.md) | [03-DATABASE](03-DATABASE.md) |

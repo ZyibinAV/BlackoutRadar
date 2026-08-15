@@ -1,219 +1,198 @@
 @startuml
 title BlackoutRadar — Domain Model
 
+hide methods
+hide stereotypes
+
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
 
 package "Identity" {
 
     class User {
-        +id
-        +email
-        +passwordHash
-        +role
-        +isActive
-        +nickname
-        +about
-        +avatar
+        +UUID id
+        +String email
+        +UserRole role
     }
 
     class RefreshToken {
-        +id
-        +expiresAt
-        +revokedAt
+        +UUID id
+        +Instant expiresAt
+        +Instant revokedAt
+    }
+}
+
+package "Subscription" {
+
+    class Subscription {
+        +UUID id
+        +Instant monitoringStart
+        +Instant monitoringEnd
+        +boolean isActive
+        +Instant serviceAccessUntil
+    }
+
+    class TransformerStation {
+        +UUID id
+        +String name
     }
 }
 
 package "Address Catalog" {
 
     class Region {
-        +id
-        +name
+        +UUID id
+        +String name
     }
 
     class RegionalDistrict {
-        +id
-        +type
-        +name
+        +UUID id
+        +RegionalDistrictType type
+        +String name
     }
 
     class City {
-        +id
-        +name
+        +UUID id
+        +String name
     }
 
     class CityDistrict {
-        +id
-        +name
+        +UUID id
+        +String name
     }
 
     class Street {
-        +id
-        +type
-        +canonicalName
+        +UUID id
+        +StreetType type
+        +String canonicalName
     }
 
-    enum StreetType {
-        STREET
-        PROSPECT
-        BOULEVARD
-        LANE
-        PASSAGE
-        SQUARE
-        EMBANKMENT
-        HIGHWAY
-        ROAD
-        TRACT
-        ALLEY
-        DEAD_END
-        DESCENT
-        MAGISTRAL
-        UNKNOWN
+    class House {
+        +String houseNumber
+        +String houseAddition
+        +String canonicalHouse
     }
 
     class Address {
-        +id
-        +houseNumber
-        +houseAddition
-        +canonicalHouse
-    }
-}
-
-package "Monitoring" {
-
-    class Subscription {
-        +id
-        +monitoringStart
-        +monitoringEnd
-        +isActive
-        +serviceAccessUntil
-    }
-
-    class TransformerStation {
-        +id
-        +name
+        +UUID id
+        +House house
     }
 }
 
 package "Outage" {
 
     class Source {
-        +id
-        +name
-        +sourceType
-        +providerType
-        +configuration
-        +schedule
-        +isActive
+        +UUID id
+        +String name
+        +String sourceType
+        +String providerType
+        +String configuration
+        +String schedule
+        +boolean isActive
     }
 
     class PowerOutage {
-        +id
-        +startTime
-        +endTime
-        +reason
-        +status
+        +UUID id
+        +Instant startTime
+        +Instant endTime
+        +String reason
+        +OutageStatus status
     }
 
     class PowerOutageAddress {
-        +id
+        +UUID id
+    }
+
+    class Candidate {
+        <<temporary>>
+    }
+
+    class Match {
+        <<temporary>>
     }
 }
 
 package "Notification" {
 
     class Notification {
-        +id
-        +message
-        +status
+        +UUID id
+        +String message
+        +NotificationStatus status
+    }
+
+    enum NotificationStatus {
+        PENDING
+        PROCESSING
+        SENT
+        FAILED
     }
 }
 
 ' Identity
-
 User "1" -- "0..*" RefreshToken
 User "1" -- "0..*" Subscription
 
-' Address Catalog
+' Subscription
+Subscription "0..*" -- "1" Address
+Subscription "0..*" -- "0..*" TransformerStation
+Subscription "1" -- "0..*" Notification
 
+' Address Catalog
 Region "1" -- "0..*" RegionalDistrict
 Region "1" -- "0..*" City
-
 RegionalDistrict "0..1" -- "0..*" City
-
 City "1" -- "0..*" CityDistrict
 City "1" -- "0..*" Street
-
-Street --> StreetType
-
 Street "1" -- "0..*" Address
 CityDistrict "0..1" -- "0..*" Address
-
-' Monitoring
-
-Address "1" -- "0..*" Subscription
-
-Subscription "0..*" -- "0..*" TransformerStation
+Address *-- "1" House
 
 ' Outage
-
 Source "1" -- "0..*" PowerOutage
+PowerOutage "1" *-- "1..*" PowerOutageAddress
+PowerOutageAddress "*" -- "1" Address
+PowerOutageAddress "*" -- "0..1" TransformerStation
 
-PowerOutage "1" -- "1..*" PowerOutageAddress
-Address "1" -- "0..*" PowerOutageAddress
-
-PowerOutageAddress "0..*" -- "0..1" TransformerStation
+' Matching
+PowerOutage ..> Candidate : evaluated by\nCandidateFinder
+Candidate ..> Match : evaluated by\nMatching Engine
+Match ..> Subscription : matches
+Match ..> PowerOutage : matches
 
 ' Notification
+Notification "*" --> "1" Subscription
+Notification "*" --> "1" PowerOutage
 
-Subscription "1" -- "0..*" Notification
-PowerOutage "1" -- "0..*" Notification
+note right of Match
+Temporary result of
+Matching Engine.
 
-note right of Region
-  Верхний административный
-  контекст адреса.
+Not persisted.
+
+Notification does not
+technically depend on Match.
 end note
 
-note right of RegionalDistrict
-  Опциональная промежуточная
-  административно-муниципальная
-  единица внутри Region.
+note right of Notification
+Created after successful Match
+by Application / Processing Flow.
+
+Lifecycle:
+
+PENDING
+PROCESSING
+SENT
+FAILED
 end note
 
-note right of City
-  City всегда принадлежит Region.
+note bottom of NotificationStatus
+PROCESSING means that
+Notification Engine accepted
+the Notification for processing.
 
-  RegionalDistrict является
-  необязательным.
-end note
-
-note right of CityDistrict
-  Внутригородской район.
-
-  Не является родителем Street.
-  Может уточнять конкретный Address.
-end note
-
-note right of Street
-  Street принадлежит City.
-
-  Идентичность:
-  City + StreetType + CanonicalName
-end note
-
-note right of Address
-  Канонический адрес.
-
-  Идентичность:
-  Street + CityDistrict? + CanonicalHouse
-end note
-
-note bottom of Notification
-  Notification создается
-  после успешного Match.
-
-  User определяется
-  через Subscription.
+Retry and Delivery Attempt
+are not part of the current
+Notification Domain Model.
 end note
 
 @enduml

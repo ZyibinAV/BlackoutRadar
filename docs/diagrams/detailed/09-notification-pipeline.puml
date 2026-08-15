@@ -1,33 +1,50 @@
-@startuml BlackoutRadar_NotificationPipeline
-
+@startuml
 title BlackoutRadar — Notification Pipeline
 
-skinparam shadowing false
-skinparam sequenceMessageAlign center
-skinparam responseMessageBelowArrow true
-skinparam ArrowThickness 1.5
+skinparam linetype ortho
 
-participant "Notification Engine" as Engine
-participant "Channel Adapter" as Adapter
-participant "SMTP"
-participant "Telegram"
+start
 
-Engine -> Adapter : Deliver notification
+:Match;
 
-alt Email
+:Application / Processing Flow;
 
-    Adapter -> SMTP : Send email
+:Create Notification;
 
-    SMTP --> Adapter : Delivery result
+:Notification;
+note right
+Subscription + PowerOutage
+must be unique.
 
-else Telegram
+Notification has no
+technical dependency on Match.
+end note
 
-    Adapter -> Telegram : Send message
+:PENDING;
 
-    Telegram --> Adapter : Delivery result
+:Notification Engine;
 
-end
+:PROCESSING;
 
-Adapter --> Engine : Update status
+:Determine delivery channel;
+
+:Prepare message;
+
+:Delivery Adapter;
+
+if (Delivery successful?) then (yes)
+    :SENT;
+else (no)
+    :FAILED;
+
+    if (Retry required?) then (yes)
+        :Retry Decision;
+        :PROCESSING;
+    else (no)
+        stop
+    endif
+endif
+
+stop
 
 @enduml

@@ -1,30 +1,34 @@
-@startuml BlackoutRadar_MatchingPipeline
-
+@startuml
 title BlackoutRadar — Matching Pipeline
 
-skinparam shadowing false
-skinparam sequenceMessageAlign center
-skinparam responseMessageBelowArrow true
-skinparam ArrowThickness 1.5
+skinparam linetype ortho
 
-participant "Processing Pipeline" as Pipeline
-participant "Duplicate Resolver" as Duplicate
-participant "Candidate Finder" as Finder
-participant "Matching Engine" as Matching
-participant "Notification Engine" as Notification
+start
 
-Pipeline -> Duplicate : Resolve duplicates
+:PowerOutage;
 
-Duplicate --> Pipeline : PowerOutage
+:CandidateFinder;
 
-Pipeline -> Finder : Find candidates
+:Candidate;
 
-Finder --> Pipeline : Subscription list
+:Matching Engine;
 
-Pipeline -> Matching : Match outage
+if (Subscription matches?) then (yes)
+    :Match;
+else (no)
+    stop
+endif
 
-Matching --> Pipeline : Match list
+:Application / Processing Flow;
 
-Pipeline -> Notification : Create notifications
+if (Notification required?) then (yes)
+    :Create Notification;
+else (no)
+    stop
+endif
+
+:Notification;
+
+stop
 
 @enduml

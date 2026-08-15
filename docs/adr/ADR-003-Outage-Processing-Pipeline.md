@@ -12,7 +12,13 @@
 
 ## Дата
 
-2026-08-08
+2026-08-14
+
+---
+
+## Версия
+
+1.1
 
 ---
 
@@ -31,9 +37,11 @@
 
 Данное решение оказывает влияние на:
 
-- Parser
-- Matching Engine
-- Notification Engine
+- Parser;
+- Matching Engine;
+- Application / Processing Flow;
+- Notification;
+- Notification Engine.
 
 ---
 
@@ -42,6 +50,7 @@
 - [04-PARSER](../04-PARSER.md)
 - [05-MATCHING_ENGINE](../05-MATCHING_ENGINE.md)
 - [06-NOTIFICATION_ENGINE](../06-NOTIFICATION_ENGINE.md)
+- [02-DOMAIN_MODEL](../02-DOMAIN_MODEL.md)
 
 ---
 
@@ -57,9 +66,9 @@
 
 **Статус:** Accepted
 
-**Дата:** 2026-08-08
+**Дата:** 2026-08-14
 
-**Версия:** 1.0
+**Версия:** 1.1
 
 ---
 
@@ -73,7 +82,9 @@
 Данный документ определяет
 единственный допустимый поток обработки данных
 от момента получения информации
-до создания уведомления пользователю.
+до создания уведомления пользователю
+и последующей передачи Notification
+в Notification Engine.
 
 ---
 
@@ -125,7 +136,6 @@ Domain First Architecture.
 
 ## Вариант 1 — Каждый Provider выполняет полный цикл
 
-```
 Provider
 
 ↓
@@ -139,7 +149,6 @@ Matching
 ↓
 
 Notification
-```
 
 ### Преимущества
 
@@ -156,7 +165,6 @@ Notification
 
 ## Вариант 2 — Общий Pipeline обработки
 
-```
 OutageProvider
 
 ↓
@@ -186,7 +194,6 @@ Notification
 ↓
 
 Notification Engine
-```
 
 Каждый этап
 решает только одну задачу.
@@ -217,6 +224,17 @@ Notification Engine
 
 Ни один этап
 не может быть пропущен.
+
+Pipeline разделяет:
+
+- получение внешних данных;
+- формирование временной модели;
+- дедупликацию;
+- создание постоянного события;
+- поиск кандидатов;
+- Matching;
+- создание Notification;
+- доставку Notification.
 
 ---
 
@@ -279,28 +297,334 @@ Matching Engine
 
 Результатом является Match.
 
+Matching Engine
+не создаёт Notification
+и не зависит
+от способа его доставки.
+
 ---
 
-## 6. Создание уведомления
+## 6. Создание Notification
 
-После успешного сопоставления
-создается Notification.
+После успешного Match
+Application / Processing Flow
+создаёт Notification.
+
+Notification представляет
+доменный объект,
+содержащий необходимость
+уведомить пользователя
+о найденном совпадении.
 
 Notification
-представляет собой задачу
-на отправку сообщения.
+не имеет технической
+зависимости от Match.
+
+Match является
+временным результатом
+Matching Engine.
+
+Связь:
+
+Match
+
+↓
+
+Application / Processing Flow
+
+↓
+
+Notification
+
+Правило создания Notification
+после успешного Match
+является правилом
+Application / Processing Flow.
 
 ---
 
-## 7. Отправка уведомления
+## 7. Передача Notification
+
+После создания Notification
+Application / Processing Flow
+передаёт готовый Notification
+в Notification Engine.
 
 Notification Engine
-доставляет сообщение
-по выбранному пользователем каналу.
+не создаёт Notification
+и не принимает решение
+о необходимости его создания.
 
-Механизм доставки
-не влияет
-на бизнес-логику.
+Связь:
+
+Notification
+
+↓
+
+Notification Engine
+
+---
+
+## 8. Обработка Notification
+
+Notification Engine
+принимает Notification
+в обработку.
+
+Notification имеет
+следующие состояния:
+
+- PENDING;
+- PROCESSING;
+- SENT;
+- FAILED.
+
+### PENDING
+
+Notification создан
+и ожидает обработки
+Notification Engine.
+
+### PROCESSING
+
+Notification Engine
+принял Notification
+в обработку.
+
+PROCESSING означает
+состояние обработки
+Notification Engine.
+
+PROCESSING не является
+состоянием конкретного
+канала доставки
+или Delivery Adapter.
+
+### SENT
+
+Notification Engine
+успешно завершил
+обработку Notification.
+
+SENT означает
+успешное завершение
+операции доставки.
+
+SENT не означает
+гарантированное прочтение
+или ознакомление пользователя
+с сообщением.
+
+### FAILED
+
+Обработка Notification
+завершилась ошибкой.
+
+Notification не удаляется
+и сохраняется в истории.
+
+Notification Engine
+может принять решение
+о повторной обработке.
+
+---
+
+# Retry
+
+Retry является
+ответственностью
+Notification Engine.
+
+Retry Policy не является
+частью текущего
+Notification Domain.
+
+Повторная обработка
+FAILED Notification
+не создаёт новый Notification.
+
+Возможный flow:
+
+FAILED
+
+↓
+
+Retry Decision
+
+↓
+
+PROCESSING
+
+↓
+
+SENT
+
+Конкретные:
+
+- количество попыток;
+- интервалы;
+- backoff;
+- условия повторной обработки;
+- время следующей обработки;
+- история Delivery Attempt
+
+определяются
+в Notification Engine.
+
+Детальная модель Retry
+будет определена
+в рамках:
+
+`TASK 27 — Retry and Delivery Processing`.
+
+---
+
+# Delivery Attempt
+
+Delivery Attempt
+не является частью
+текущей Domain Model.
+
+История попыток доставки
+относится к Notification Engine.
+
+Конкретная модель
+Delivery Attempt,
+ее хранение
+и lifecycle
+будут определены
+при реализации
+Retry and Delivery Processing.
+
+---
+
+# Архитектурные границы
+
+## OutageProvider
+
+Отвечает за:
+
+- получение внешних данных;
+- преобразование
+  во внутреннюю ParsedOutage.
+
+Не отвечает за:
+
+- создание PowerOutage;
+- дедупликацию;
+- Matching;
+- Notification;
+- доставку.
+
+---
+
+## DuplicateResolver
+
+Отвечает за:
+
+- обнаружение дубликатов;
+- определение необходимости
+  создания или обновления
+  PowerOutage.
+
+Не отвечает за:
+
+- Matching;
+- Notification;
+- доставку.
+
+---
+
+## CandidateFinder
+
+Отвечает за:
+
+- поиск потенциальных
+  Subscription.
+
+Не принимает
+окончательное решение
+о совпадении.
+
+---
+
+## Matching Engine
+
+Отвечает за:
+
+- окончательное сопоставление
+  PowerOutage и Subscription;
+- формирование Match.
+
+Не отвечает за:
+
+- создание Notification;
+- доставку Notification;
+- конкретный канал доставки.
+
+---
+
+## Application / Processing Flow
+
+Отвечает за:
+
+- передачу результата Match
+  на следующий этап;
+- создание Notification
+  после успешного Match;
+- передачу готового Notification
+  в Notification Engine.
+
+Application / Processing Flow
+не изменяет бизнес-смысл
+Match или Notification.
+
+---
+
+## Notification
+
+Отвечает за:
+
+- Subscription;
+- PowerOutage;
+- текст уведомления;
+- состояние;
+- уникальность
+  Subscription + PowerOutage;
+- сохранение истории.
+
+Notification не отвечает за:
+
+- Matching;
+- выбор канала;
+- доставку;
+- Retry;
+- Delivery Attempt.
+
+---
+
+## Notification Engine
+
+Отвечает за:
+
+- принятие Notification
+  в обработку;
+- выбор канала;
+- подготовку сообщения;
+- передачу Adapter;
+- обработку результата;
+- обновление состояния Notification;
+- Retry Decision.
+
+Notification Engine
+не отвечает за:
+
+- получение outage data;
+- Parser;
+- DuplicateResolver;
+- CandidateFinder;
+- Matching;
+- создание Notification.
 
 ---
 
@@ -335,17 +659,78 @@ ParsedOutage.
 Email,
 Telegram,
 Push
+
 являются только
-способами доставки Notification.
+способами доставки
+Notification.
+
+Изменение способа доставки
+не должно изменять
+бизнес-логику Pipeline.
 
 ---
 
-## 5. Бизнес-логика сосредоточена в Pipeline
+## 5. Matching не зависит от доставки
 
-Основная логика системы
-расположена
-между получением данных
-и созданием Notification.
+Matching Engine
+формирует Match
+и не зависит
+от Notification Engine
+или конкретного Delivery Adapter.
+
+---
+
+## 6. Notification не зависит от Match технически
+
+Notification создаётся
+после успешного Match,
+но не содержит
+и не требует
+объект Match.
+
+Правило последовательности:
+
+Match
+
+↓
+
+Application / Processing Flow
+
+↓
+
+Notification
+
+является правилом
+прикладного процесса.
+
+---
+
+## 7. Retry не является частью Domain Model
+
+Retry Policy,
+Delivery Attempt
+и повторное планирование
+относятся к
+Notification Engine.
+
+---
+
+## 8. Доставка не влияет
+на бизнес-решение
+
+Ошибка доставки
+не изменяет результат
+Matching Engine.
+
+Match остаётся
+положительным результатом
+сопоставления.
+
+Ошибка доставки
+изменяет состояние
+Notification,
+но не отменяет
+сам факт Match.
 
 ---
 
@@ -358,7 +743,13 @@ Pipeline позволяет:
 - исключить дублирование;
 - обеспечить расширяемость;
 - упростить тестирование;
-- поддерживать единый алгоритм обработки.
+- поддерживать единый алгоритм обработки;
+- отделить Matching
+  от доставки;
+- отделить Notification Domain
+  от Delivery Infrastructure;
+- независимо развивать
+  Retry и Delivery Processing.
 
 ---
 
@@ -370,7 +761,14 @@ Pipeline позволяет:
 - уменьшается связанность компонентов;
 - легко добавляются новые Provider;
 - легко изменяются алгоритмы Matching;
-- легко расширяется Notification Engine.
+- легко расширяется Notification Engine;
+- Notification Domain
+  не зависит от Match implementation;
+- Retry не загрязняет
+  Domain Model;
+- изменение канала доставки
+  не требует изменения
+  Matching Engine.
 
 ---
 
@@ -380,9 +778,14 @@ Pipeline позволяет:
 
 - увеличению количества компонентов;
 - увеличению числа объектов;
-- более сложной первоначальной архитектуре.
+- появлению отдельного
+  Application / Processing Flow;
+- более сложной первоначальной архитектуре;
+- необходимости явно разделять
+  Domain и Delivery lifecycle.
 
-Данные недостатки признаны допустимыми.
+Данные недостатки
+признаны допустимыми.
 
 ---
 
@@ -397,19 +800,207 @@ Pipeline позволяет:
 - PowerOutage;
 - CandidateFinder;
 - Matching Engine;
+- Match;
+- Application / Processing Flow;
 - Notification;
-- Notification Engine.
+- Notification Engine;
+- Delivery Adapter;
+- Retry Processing.
 
 ---
 
-# Связанные документы
+# Влияние на Domain Model
 
-- [ADR-001 — Domain First Architecture](ADR-001-Domain-First-Architecture.md)
-- [ADR-002 — Canonical Address Model](ADR-002-Canonical-Address-Model.md)
-- [01-ARCHITECTURE](../01-ARCHITECTURE.md)
-- [04-PARSER](../04-PARSER.md)
-- [05-MATCHING_ENGINE](../05-MATCHING_ENGINE.md)
-- [06-NOTIFICATION_ENGINE](../06-NOTIFICATION_ENGINE.md)
+Notification остаётся
+самостоятельным
+доменным объектом.
+
+Notification:
+
+- не зависит технически
+  от Match;
+- имеет собственный lifecycle;
+- имеет состояния:
+  PENDING,
+  PROCESSING,
+  SENT,
+  FAILED;
+- сохраняет связь
+  с Subscription;
+- сохраняет связь
+  с PowerOutage;
+- ограничен уникальностью
+  Subscription + PowerOutage.
+
+Retry Policy
+и Delivery Attempt
+не входят
+в текущую Domain Model.
+
+---
+
+# Влияние на Notification Engine
+
+Notification Engine
+получает уже созданный
+Notification.
+
+Engine:
+
+1. принимает Notification;
+2. переводит его
+   в PROCESSING;
+3. определяет канал;
+4. подготавливает сообщение;
+5. передаёт Adapter;
+6. получает результат;
+7. переводит Notification
+   в SENT или FAILED;
+8. при необходимости
+   принимает Retry Decision.
+
+Конкретная Retry Policy
+не определяется
+на уровне данного ADR.
+
+---
+
+# Влияние на Matching Engine
+
+Matching Engine
+завершает свою работу
+формированием Match.
+
+Он:
+
+- не создаёт Notification;
+- не выбирает канал;
+- не вызывает Delivery Adapter;
+- не зависит от Retry Policy.
+
+Последующий переход:
+
+Match
+
+↓
+
+Application / Processing Flow
+
+↓
+
+Notification
+
+является следующим этапом
+Pipeline.
+
+---
+
+# Влияние на Persistence
+
+Pipeline ADR
+не определяет
+конкретную persistence
+реализацию.
+
+Notification persistence
+остаётся ответственностью
+Notification Persistence.
+
+Текущая модель Notification
+хранит:
+
+- subscription_id;
+- power_outage_id;
+- message;
+- status;
+- created_at;
+- updated_at.
+
+Retry и Delivery Attempt
+не входят
+в текущую persistence model.
+
+---
+
+# Совместимость с Replaceable Infrastructure
+
+Notification Engine
+и Delivery Adapter
+являются частью
+внешней инфраструктуры.
+
+Domain Model
+не зависит от:
+
+- SMTP;
+- Telegram;
+- Push;
+- конкретных Adapter;
+- Spring;
+- PostgreSQL;
+- других инфраструктурных технологий.
+
+Замена конкретного
+механизма доставки
+не должна изменять
+Domain Model.
+
+---
+
+# Изменение ADR
+
+Версия 1.1 уточняет
+существующее архитектурное решение
+и не изменяет
+основной Pipeline.
+
+Основная последовательность
+остаётся:
+
+OutageProvider
+
+↓
+
+ParsedOutage
+
+↓
+
+DuplicateResolver
+
+↓
+
+PowerOutage
+
+↓
+
+CandidateFinder
+
+↓
+
+Matching Engine
+
+↓
+
+Notification
+
+↓
+
+Notification Engine
+
+Уточнение версии 1.1
+состоит в явном выделении
+Application / Processing Flow
+между Match и Notification.
+
+Также явно разделены:
+
+- Notification Domain lifecycle;
+- Notification Engine processing;
+- Retry Processing;
+- Delivery Attempt.
+
+Новое архитектурное решение
+для этого не требуется.
 
 ---
 
@@ -417,9 +1008,17 @@ Pipeline позволяет:
 
 **Accepted**
 
-Изменение Pipeline
+Изменение основного Pipeline
 допускается
-только путем создания нового ADR.
+только путем создания
+нового ADR.
+
+Уточнения границ
+ответственности,
+не изменяющие основной Pipeline,
+могут вноситься
+в рамках новой версии
+данного ADR.
 
 ---
 
@@ -427,9 +1026,19 @@ Pipeline позволяет:
 
 ## Документы
 
+- [02-DOMAIN_MODEL](../02-DOMAIN_MODEL.md)
 - [04-PARSER](../04-PARSER.md)
 - [05-MATCHING_ENGINE](../05-MATCHING_ENGINE.md)
 - [06-NOTIFICATION_ENGINE](../06-NOTIFICATION_ENGINE.md)
+
+## ADR
+
+- [ADR-001 — Domain First Architecture](ADR-001-Domain-First-Architecture.md)
+- [ADR-002 — Canonical Address Model](ADR-002-Canonical-Address-Model.md)
+- [ADR-004 — OutageProvider Architecture](ADR-004-OutageProvider-Architecture.md)
+- [ADR-005 — PowerOutage Event Model](ADR-005-PowerOutage-Event-Model.md)
+- [ADR-006 — Matching Engine](ADR-006-Matching-Engine.md)
+- [ADR-007 — Replaceable Infrastructure](ADR-007-Replaceable-Infrastructure.md)
 
 ## Диаграммы
 

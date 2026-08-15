@@ -613,6 +613,7 @@ city_id не участвует
 в канонической идентичности Address
 и не используется
 в бизнес-логике проекта.
+
 Дублирует City,
 уже определяемый через Street.
 
@@ -646,7 +647,7 @@ city_id:
 а city_district_id —
 только на CityDistrict
 того же City,
-которому принадлежит Street.
+к которому принадлежит Street.
 
 ### Уникальность
 
@@ -1073,7 +1074,12 @@ RESTRICT
 ### Назначение
 
 Хранит историю уведомлений,
-созданных после Match.
+созданных после успешного Match
+в Application / Processing Flow.
+
+Notification не хранит
+техническую зависимость
+от Match.
 
 ### Поля
 
@@ -1093,6 +1099,59 @@ UNIQUE(
 subscription_id,
 power_outage_id
 )
+
+### Notification Status
+
+Поле `status` хранит
+текущее состояние Notification.
+
+Допустимые значения:
+
+- PENDING;
+- PROCESSING;
+- SENT;
+- FAILED.
+
+### Семантика Status
+
+#### PENDING
+
+Notification создан
+и ожидает обработки
+Notification Engine.
+
+#### PROCESSING
+
+Notification Engine
+принял Notification
+в обработку.
+
+PROCESSING не содержит
+информацию о конкретном
+канале, Adapter или
+delivery attempt.
+
+#### SENT
+
+Notification Engine
+успешно завершил
+обработку Notification.
+
+SENT означает успешное
+завершение операции доставки.
+
+SENT не означает
+гарантированное прочтение
+или ознакомление пользователя.
+
+#### FAILED
+
+Обработка Notification
+завершилась ошибкой.
+
+Notification сохраняется
+и может быть повторно
+обработан Notification Engine.
 
 ### Индексы
 
@@ -1144,9 +1203,27 @@ Notification не удаляется
 Retry Policy,
 планирование повторных попыток
 и история попыток доставки
+относятся к Notification Engine.
+
+Конкретная модель
+Delivery Attempt,
+условия Retry,
+backoff и планирование
+повторной обработки
 будут определены
 при проектировании
-Notification Engine.
+`TASK 27 — Retry and Delivery Processing`.
+
+Повторная обработка
+FAILED Notification
+не создаёт новый Notification.
+
+Это сохраняет ограничение:
+
+UNIQUE(
+subscription_id,
+power_outage_id
+)
 
 ---
 
