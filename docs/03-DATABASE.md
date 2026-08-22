@@ -58,7 +58,14 @@ PostgreSQL 18.
 - FOREIGN KEY;
 - UNIQUE;
 - CHECK;
-- NOT NULL.
+- NOT NULL там, где
+  соответствующее поле
+  является обязательным
+  по Database Model.
+
+Nullable-поля явно
+фиксируются в описании
+соответствующей таблицы.
 
 ---
 
@@ -395,10 +402,9 @@ RegionalDistrict является
 
 ### Целостность
 
-Если regional_district_id
-задан, RegionalDistrict
-обязан принадлежать
-тому же Region.
+City может принадлежать
+RegionalDistrict только
+внутри того же Region.
 
 Это обеспечивается
 составным FOREIGN KEY.
@@ -587,102 +593,50 @@ Matching Engine.
 | Поле | Тип | NULL | Ограничения |
 |---|---|---|---|
 | id | UUID | NO | PK |
-| city_id | UUID | NO | технический (FK) |
 | street_id | UUID | NO | FK |
 | city_district_id | UUID | YES | FK |
 | house_number | VARCHAR | NO | |
-| house_addition | VARCHAR | YES | |
-| canonical_house | VARCHAR | NO | |
+| house_fraction | VARCHAR | YES | |
+| canonical_name | VARCHAR | NO | |
 | created_at | TIMESTAMP WITH TIME ZONE | NO | |
 | updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
-### Техническое поле city_id
+Persistence-specific
+`city_id` используется
+для обеспечения адресной
+целостности через
+composite FOREIGN KEY.
 
-city_id является
-техническим persistence-атрибутом
-и не является частью
-Domain Model.
-
-Его назначение — исключительно
-служить carrier
-для composite FOREIGN KEY,
-обеспечивающих адресную целостность
-на уровне БД.
-
-city_id не участвует
-в канонической идентичности Address
-и не используется
-в бизнес-логике проекта.
-
-Дублирует City,
-уже определяемый через Street.
+`city_id` не является частью
+Domain Model, канонической
+идентичности Address
+или бизнес-логики.
 
 ### Целостность
 
-Если city_district_id задан,
-CityDistrict обязан
-принадлежать тому же City,
-к которому относится Street.
+Address должен ссылаться
+на Street и CityDistrict,
+относящиеся к одному City.
 
-Целостность обеспечивается
-на уровне БД
-двумя composite FOREIGN KEY,
-использующими техническое поле
-city_id:
+Используются:
 
-- (city_id, street_id)
-  → street(city_id, id);
-- (city_id, city_district_id)
-  → city_district(city_id, id).
+- `street_id → street(id)`;
+- `city_district_id → city_district(id)`;
+- `(city_id, street_id) → street(city_id, id)`;
+- `(city_id, city_district_id) → city_district(city_id, id)`.
 
-Дополнительно сохраняются
-обычные FOREIGN KEY:
-
-- street_id → street(id);
-- city_district_id → city_district(id).
-
-Так, значение street_id
-может ссылаться только на Street
-того же City,
-а city_district_id —
-только на CityDistrict
-того же City,
-к которому принадлежит Street.
-
-### Уникальность
-
-Для Address с CityDistrict:
-
-UNIQUE(
-street_id,
-city_district_id,
-canonical_house
-)
-
-Для Address без CityDistrict:
-
-UNIQUE(
-street_id,
-canonical_house
-)
-
-Для реализации используются
-частичные UNIQUE INDEX.
+Для поддержки composite
+FOREIGN KEY используются
+соответствующие UNIQUE indexes.
 
 ### Индексы
 
 - PK(id);
 - INDEX(street_id);
 - INDEX(city_district_id);
-- INDEX(canonical_house);
-- supporting UNIQUE INDEX
-  street(city_id, id);
-- supporting UNIQUE INDEX
-  city_district(city_id, id);
-- partial UNIQUE INDEX
-  для Address с CityDistrict;
-- partial UNIQUE INDEX
-  для Address без CityDistrict.
+- INDEX(canonical_name);
+- supporting UNIQUE indexes
+  для composite foreign keys.
 
 ### Связи
 
@@ -728,8 +682,9 @@ RESTRICT
 
 ### Назначение
 
-Хранит перечень
-трансформаторных подстанций.
+Хранит TransformerStation,
+связанную с Subscription
+или PowerOutageAddress.
 
 ### Поля
 
@@ -887,6 +842,26 @@ RESTRICT
 Хранит конфигурацию
 внешнего источника.
 
+`configuration` является
+необязательной.
+
+Отсутствие configuration
+представляется SQL `NULL`.
+
+SQL `NULL` является единственным
+persistence representation
+отсутствующей configuration.
+
+Пустой JSON object `{}` не используется
+как замена отсутствующей configuration.
+
+JSONB `null` не используется
+как альтернативное representation
+отсутствующей configuration.
+
+Persistence Layer не подставляет
+provider-specific default configuration.
+
 ### Поля
 
 | Поле | Тип | NULL | Ограничения |
@@ -895,7 +870,7 @@ RESTRICT
 | name | VARCHAR | NO | UNIQUE |
 | source_type | VARCHAR | NO | |
 | provider_type | VARCHAR | NO | |
-| configuration | JSONB | NO | |
+| configuration | JSONB | YES | |
 | schedule | VARCHAR | NO | |
 | is_active | BOOLEAN | NO | DEFAULT TRUE |
 | created_at | TIMESTAMP WITH TIME ZONE | NO | |
@@ -1204,189 +1179,3 @@ Retry Policy,
 планирование повторных попыток
 и история попыток доставки
 относятся к Notification Engine.
-
-Конкретная модель
-Delivery Attempt,
-условия Retry,
-backoff и планирование
-повторной обработки
-будут определены
-при проектировании
-`TASK 27 — Retry and Delivery Processing`.
-
-Повторная обработка
-FAILED Notification
-не создаёт новый Notification.
-
-Это сохраняет ограничение:
-
-UNIQUE(
-subscription_id,
-power_outage_id
-)
-
----
-
-# Общая стратегия ON DELETE
-
-По умолчанию используется:
-
-RESTRICT
-
-CASCADE применяется
-только когда дочерняя запись
-не имеет самостоятельного
-жизненного цикла.
-
-### CASCADE
-
-- user → refresh_token;
-- subscription →
-  subscription_transformer_station;
-- power_outage →
-  power_outage_address.
-
-### RESTRICT
-
-Остальные доменные связи.
-
----
-
-# Общая стратегия ON UPDATE
-
-Используется:
-
-RESTRICT
-
-Primary Key
-не изменяются.
-
----
-
-# Адресная модель
-
-Канонический контекст:
-
-Region
-
-↓
-
-RegionalDistrict (0..1)
-
-↓
-
-City
-
-↓
-
-Street
-
-↓
-
-Address
-
-Address
-
-↓
-
-CityDistrict (0..1)
-
-CityDistrict принадлежит City.
-
-Street принадлежит City.
-
-CityDistrict не является
-родителем Street.
-
----
-
-# Каноническая идентичность
-
-## RegionalDistrict
-
-Region + Type + Name
-
-## City
-
-Если RegionalDistrict задан:
-
-RegionalDistrict + Name
-
-Если RegionalDistrict отсутствует:
-
-Region + Name
-
-## CityDistrict
-
-City + Name
-
-## Street
-
-City + StreetType + CanonicalName
-
-## Address
-
-Street + CityDistrict + CanonicalHouse
-
----
-
-# Строковый поиск
-
-LIKE/ILIKE допускается
-только для поиска кандидатов.
-
-Строковый поиск:
-
-- не является Matching;
-- не создает Match;
-- не заменяет каноническую модель.
-
-После CandidateFinder
-Matching Engine работает
-с каноническими объектами.
-
----
-
-# Безопасность
-
-Секреты не хранятся
-в исходном коде,
-Git или открытой
-конфигурации.
-
-К секретам относятся:
-
-- database credentials;
-- JWT Secret;
-- OAuth2 Client Secret;
-- SMTP credentials;
-- MinIO credentials.
-
-Source.configuration
-не должна содержать
-секретные значения.
-
----
-
-# Связанные документы
-
-- [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
-- [ADR-002 — Canonical Address Model](adr/ADR-002-Canonical-Address-Model.md)
-- [ADR-005 — PowerOutage Event Model](adr/ADR-005-PowerOutage-Event-Model.md)
-- [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
-- [07-SECURITY](07-SECURITY.md)
-
----
-
-# См. также
-
-## Диаграммы
-
-- [Domain Model](diagrams/detailed/05-domain-model.puml)
-- [Database ER](diagrams/detailed/06-database-er.puml)
-
----
-
-| ⬅ Предыдущий | 🏠 README | ➡ Следующий |
-|-------------|-----------|-------------|
-| [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md) | [README](README.md) | [04-PARSER](04-PARSER.md) |

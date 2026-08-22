@@ -14,12 +14,6 @@ package "Identity" {
         +String email
         +UserRole role
     }
-
-    class RefreshToken {
-        +UUID id
-        +Instant expiresAt
-        +Instant revokedAt
-    }
 }
 
 package "Subscription" {
@@ -129,7 +123,6 @@ package "Notification" {
 }
 
 ' Identity
-User "1" -- "0..*" RefreshToken
 User "1" -- "0..*" Subscription
 
 ' Subscription
