@@ -30,4 +30,11 @@ public class RegionPersistenceAdapter implements RegionPort {
     public Region save(Region region) {
         return mapper.toDomain(repository.save(mapper.toEntity(region)));
     }
+
+    @Override
+    @Transactional
+    public Region resolveCanonical(String canonicalName) {
+        repository.insertIfAbsent(java.util.UUID.randomUUID(), canonicalName);
+        return repository.findByName(canonicalName).map(mapper::toDomain).orElseThrow();
+    }
 }

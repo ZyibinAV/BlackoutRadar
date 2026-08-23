@@ -10,4 +10,6 @@ public interface RegionalDistrictPort {
     Optional<RegionalDistrict> findByRegionAndTypeAndName(Region region, RegionalDistrictType type, String name);
 
     RegionalDistrict save(RegionalDistrict regionalDistrict);
+
+    RegionalDistrict resolveCanonical(Region region, RegionalDistrictType type, String canonicalName);
 }

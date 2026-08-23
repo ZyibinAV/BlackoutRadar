@@ -31,4 +31,11 @@ public class CityDistrictPersistenceAdapter implements CityDistrictPort {
     public CityDistrict save(CityDistrict cityDistrict) {
         return mapper.toDomain(repository.save(mapper.toEntity(cityDistrict)));
     }
+
+    @Override
+    @Transactional
+    public CityDistrict resolveCanonical(City city, String canonicalName) {
+        repository.insertIfAbsent(java.util.UUID.randomUUID(), city.id(), canonicalName);
+        return repository.findByCityIdAndName(city.id(), canonicalName).map(mapper::toDomain).orElseThrow();
+    }
 }

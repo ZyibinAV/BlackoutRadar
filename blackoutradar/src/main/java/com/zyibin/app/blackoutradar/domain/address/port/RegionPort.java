@@ -8,4 +8,6 @@ public interface RegionPort {
     Optional<Region> findByName(String name);
 
     Region save(Region region);
+
+    Region resolveCanonical(String canonicalName);
 }

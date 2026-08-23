@@ -10,4 +10,6 @@ public interface StreetPort {
     Optional<Street> findByCityAndTypeAndCanonicalName(City city, StreetType type, String canonicalName);
 
     Street save(Street street);
+
+    Street resolveCanonical(City city, StreetType type, String canonicalName);
 }

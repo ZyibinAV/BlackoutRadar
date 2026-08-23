@@ -596,8 +596,8 @@ Matching Engine.
 | street_id | UUID | NO | FK |
 | city_district_id | UUID | YES | FK |
 | house_number | VARCHAR | NO | |
-| house_fraction | VARCHAR | YES | |
-| canonical_name | VARCHAR | NO | |
+| house_addition | VARCHAR | YES | |
+| canonical_house | VARCHAR | NO | |
 | created_at | TIMESTAMP WITH TIME ZONE | NO | |
 | updated_at | TIMESTAMP WITH TIME ZONE | NO | |
 
@@ -634,7 +634,11 @@ FOREIGN KEY используются
 - PK(id);
 - INDEX(street_id);
 - INDEX(city_district_id);
-- INDEX(canonical_name);
+- INDEX(canonical_house);
+- UNIQUE(street_id, canonical_house)
+  WHERE city_district_id IS NULL;
+- UNIQUE(street_id, city_district_id, canonical_house)
+  WHERE city_district_id IS NOT NULL;
 - supporting UNIQUE indexes
   для composite foreign keys.
 

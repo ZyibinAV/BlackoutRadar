@@ -9,4 +9,6 @@ public interface CityDistrictPort {
     Optional<CityDistrict> findByCityAndName(City city, String name);
 
     CityDistrict save(CityDistrict cityDistrict);
+
+    CityDistrict resolveCanonical(City city, String canonicalName);
 }

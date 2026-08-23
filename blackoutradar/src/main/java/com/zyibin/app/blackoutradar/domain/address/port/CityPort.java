@@ -12,4 +12,8 @@ public interface CityPort {
     Optional<City> findByRegionAndRegionalDistrictAndName(Region region, RegionalDistrict regionalDistrict, String name);
 
     City save(City city);
+
+    City resolveCanonicalInRegion(Region region, String canonicalName);
+
+    City resolveCanonicalInRegionalDistrict(RegionalDistrict regionalDistrict, String canonicalName);
 }

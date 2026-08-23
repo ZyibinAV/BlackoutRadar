@@ -32,4 +32,11 @@ public class RegionalDistrictPersistenceAdapter implements RegionalDistrictPort 
     public RegionalDistrict save(RegionalDistrict regionalDistrict) {
         return mapper.toDomain(repository.save(mapper.toEntity(regionalDistrict)));
     }
+
+    @Override
+    @Transactional
+    public RegionalDistrict resolveCanonical(Region region, RegionalDistrictType type, String canonicalName) {
+        repository.insertIfAbsent(java.util.UUID.randomUUID(), region.id(), type.name(), canonicalName);
+        return repository.findByRegionIdAndTypeAndName(region.id(), type, canonicalName).map(mapper::toDomain).orElseThrow();
+    }
 }
