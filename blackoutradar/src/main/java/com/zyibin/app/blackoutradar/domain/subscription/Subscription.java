@@ -105,6 +105,51 @@ public final class Subscription {
         return !transformerStations.isEmpty();
     }
 
+    public Subscription activate() {
+        return new Subscription(id, user, address, monitoringStart, monitoringEnd,
+                true, serviceAccessUntil, transformerStations);
+    }
+
+    public Subscription deactivate() {
+        return new Subscription(id, user, address, monitoringStart, monitoringEnd,
+                false, serviceAccessUntil, transformerStations);
+    }
+
+    public Subscription withMonitoringInterval(Instant newStart, Instant newEnd) {
+        Objects.requireNonNull(newStart, "monitoringStart must not be null");
+        Objects.requireNonNull(newEnd, "monitoringEnd must not be null");
+        return new Subscription(id, user, address, newStart, newEnd,
+                isActive, serviceAccessUntil, transformerStations);
+    }
+
+    public Subscription withServiceAccessUntil(Instant newServiceAccessUntil) {
+        Objects.requireNonNull(newServiceAccessUntil, "serviceAccessUntil must not be null");
+        return new Subscription(id, user, address, monitoringStart, monitoringEnd,
+                isActive, newServiceAccessUntil, transformerStations);
+    }
+
+    public Subscription addTransformerStation(TransformerStation station) {
+        Objects.requireNonNull(station, "transformerStation must not be null");
+        if (transformerStations.contains(station)) {
+            throw new IllegalArgumentException("duplicate transformerStation: " + station.id());
+        }
+        Set<TransformerStation> next = new LinkedHashSet<>(transformerStations);
+        next.add(station);
+        return new Subscription(id, user, address, monitoringStart, monitoringEnd,
+                isActive, serviceAccessUntil, next);
+    }
+
+    public Subscription removeTransformerStation(TransformerStation station) {
+        Objects.requireNonNull(station, "transformerStation must not be null");
+        if (!transformerStations.contains(station)) {
+            throw new IllegalArgumentException("transformerStation not found: " + station.id());
+        }
+        Set<TransformerStation> next = new LinkedHashSet<>(transformerStations);
+        next.remove(station);
+        return new Subscription(id, user, address, monitoringStart, monitoringEnd,
+                isActive, serviceAccessUntil, next);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
