@@ -434,11 +434,12 @@ TransformerStation.
 
 ## Candidate
 
-Временный результат
-CandidateFinder.
+Временный результат CandidateFinder.
 
-Candidate не является
-самостоятельным persisted объектом.
+Candidate не является самостоятельным
+persisted Business Domain Entity.
+
+Candidate реализуется в рамках Phase 6.
 
 ---
 
@@ -446,14 +447,15 @@ Candidate не является
 
 Результат Matching Engine.
 
-Match представляет
-сопоставление PowerOutage
-с Subscription.
+Match представляет сопоставление
+PowerOutage с Subscription.
 
-Match является результатом
-Matching Engine
-и не является частью
-технического Notification lifecycle.
+Match является результатом Matching Engine
+и не является частью технического Notification lifecycle.
+
+Match не является самостоятельным persisted объектом.
+
+Match реализуется в рамках Phase 6.
 
 ---
 

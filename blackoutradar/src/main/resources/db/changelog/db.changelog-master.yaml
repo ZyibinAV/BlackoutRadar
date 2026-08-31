@@ -15,3 +15,5 @@ databaseChangeLog:
       file: classpath:/db/changelog/007-notification.sql
   - include:
       file: classpath:/db/changelog/008-source-configuration-nullable.sql
+  - include:
+      file: classpath:/db/changelog/009-power-outage-identity.sql

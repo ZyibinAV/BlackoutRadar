@@ -37,4 +37,10 @@ public class PowerOutageEntity extends AbstractTimestampedEntity {
 
     @Column(name = "status", nullable = false)
     private String status;
+
+    @Column(name = "external_reference")
+    private String externalReference;
+
+    @Column(name = "fallback_fingerprint")
+    private String fallbackFingerprint;
 }
