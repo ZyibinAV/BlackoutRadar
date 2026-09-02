@@ -19,7 +19,7 @@
 
 ## Версия
 
-1.1
+1.2
 
 ---
 
@@ -39,10 +39,12 @@
 Данное решение оказывает влияние на:
 
 - OutageProvider;
+- ProviderContext;
 - Parser;
 - Provider Registry;
 - Adapter Layer;
 - Scheduler;
+- Source;
 - ParsedOutage;
 - Outage Processing Pipeline;
 - внешние scraping и document-processing technologies.
@@ -65,7 +67,7 @@
 
 **Дата:** 2026-08-09
 
-**Версия:** 1.1
+**Версия:** 1.2
 
 ---
 
@@ -78,11 +80,13 @@
 Решение определяет:
 
 - контракт OutageProvider;
+- ProviderContext;
 - Provider Registry;
 - Adapter Layer;
 - границу внешних библиотек;
 - единый внутренний формат ParsedOutage;
 - ответственность Provider;
+- границу Scheduler и Source;
 - возможность использования
   различных технологий получения данных;
 - возможность замены конкретного Provider
@@ -182,7 +186,7 @@ Provider не знает
 Любой Provider
 возвращает:
 
-`ParsedOutage`
+`List<ParsedOutage>`
 
 Внутренняя модель
 не зависит
@@ -227,53 +231,205 @@ Provider не выполняет:
 
 # Решение
 
-## 1. OutageProvider
+## 1. Source и Scheduler
+
+Source является
+конфигурационной Domain Entity
+внешнего источника.
+
+Source содержит:
+
+- `id` — UUID identity;
+- `name` — уникальное имя;
+- `sourceType` — классификация источника;
+- `providerType` — ключ для выбора Provider;
+- `configuration` — `String` (nullable), provider-specific параметры;
+- `schedule` — строковое cron-выражение;
+- `isActive` — признак активности.
+
+`schedule` хранится как `String`
+и интерпретируется
+только Scheduler / Infrastructure.
+
+Domain `Source`
+не получает методов
+`shouldRunNow()`,
+`nextRunAt()`
+и аналогичной логики
+планирования.
+
+`nextRunAt`
+не добавляется
+в Domain и Database.
+
+Scheduler работает
+только с активными Source
+(`isActive == true`).
+
+Контрактом получения
+активных Source является
+специализированный запрос
+через `SourcePort`
+`findAllActive()`.
+
+Реализация
+этого запроса
+выполнена в TASK 21
+(`SourcePort.findAllActive()`,
+`SourceJpaRepository.findByIsActiveTrue`,
+`SourcePersistenceAdapter`).
+
+Для одного Source
+одновременно
+не допускается
+более одного выполняющегося запуска.
+
+Ошибка обработки
+одного Source
+не должна останавливать
+обработку остальных Source.
+
+---
+
+## 2. ProviderContext
+
+ProviderContext является
+Application-level
+временным контрактом
+для вызова конкретного Provider.
+
+ProviderContext содержит:
+
+- `sourceId` — UUID идентификатор Source;
+- `configuration` — `String` (nullable), строка конфигурации конкретного Source.
+
+Тип `configuration`
+в ProviderContext —
+`String`,
+а не `JsonNode`.
+
+ProviderContext
+не содержит Domain `Source`.
+
+Provider получает
+только минимально необходимый
+контекст конкретного Source.
+
+Provider не получает
+прямой доступ
+к полному `Source`
+или к его `schedule` / `isActive`.
+
+---
+
+## 3. OutageProvider
 
 OutageProvider является
 абстракцией получения
 информации об отключениях
 из конкретного внешнего источника.
 
+Контракт (реализован в TASK 21):
+
+```text
+OutageProvider
+    String providerType()
+    List<ParsedOutage> fetch(ProviderContext context)
+```
+
 Каждый Provider:
 
-- реализует единый контракт;
+- сам объявляет свой `providerType`
+  через `providerType()`;
+- реализует `fetch(ProviderContext)`;
 - работает независимо;
 - не зависит от других Provider;
 - не взаимодействует
   с Domain Model напрямую;
 - не взаимодействует
   с Persistence напрямую;
-- возвращает ParsedOutage.
+- возвращает `List<ParsedOutage>`
+  (пустой список — отсутствие данных,
+  а не ошибка);
+- не занимается persistence, deduplication,
+  Matching, Notification
+  и другими Business Domain decisions.
+
+Контракт
+реализован в TASK 21
+(`application.provider.OutageProvider`).
 
 ---
 
-## 2. Provider Registry
+## 4. Provider Registry
 
 Provider Registry
 является единой точкой
-регистрации и предоставления
-доступных Provider.
+предоставления
+зарегистрированных Provider.
+
+Минимальный контракт (реализован в TASK 21):
+
+```text
+ProviderRegistry.find(String providerType)
+    → Optional<OutageProvider>
+```
 
 Registry отвечает за:
 
-- регистрацию Provider;
-- предоставление списка Provider;
-- поиск Provider
-  по типу источника;
-- проверку доступности Provider.
+- централизованное предоставление
+  зарегистрированных Provider;
+- использование `providerType` как ключа;
+- построение неизменяемого индекса
+  `providerType → Provider`
+  при старте приложения.
 
 Registry не отвечает за:
 
 - parsing;
 - нормализацию;
+- запуск Provider;
+- внешний health check;
 - persistence;
 - deduplication;
 - Matching;
 - Notification.
 
+Не добавлять
+обязательный публичный
+`list()` и `register()`
+в контракт Registry
+как часть обязательного API.
+Внутренняя регистрация
+выполняется
+через механизм
+dependency injection /
+коллекцию бинов `List<OutageProvider>`
+при построении индекса.
+
+Контракт
+реализован в TASK 21
+(`application.provider.ProviderRegistry`).
+
 ---
 
-## 3. Adapter Layer
+## 5. Регистрация и duplicate providerType
+
+При построении индекса
+`providerType → Provider`
+Registry проверяет
+уникальность `providerType`.
+
+Duplicate `providerType`
+(два Provider с одинаковым `providerType`)
+является ошибкой
+конфигурации приложения
+и приводит к отказу старта
+(например, `IllegalStateException`).
+
+---
+
+## 6. Adapter Layer
 
 Adapter Layer
 изолирует внутреннюю модель
@@ -467,7 +623,7 @@ Adapter
 
 ↓
 
-ParsedOutage.
+ParsedOutage (`List<ParsedOutage>`).
 
 ---
 
@@ -557,15 +713,41 @@ Provider Adapter
 
 ↓
 
-ParsedOutage
+ParsedOutage (`sourceId` + данные)
 
 ↓
 
 Outage Processing Pipeline.
 
-ParsedOutage
-не содержит
-моделей внешних библиотек.
+ParsedOutage:
+
+- является Application-level
+  временным контрактом Parser;
+- не является сущностью базы данных;
+- не содержит
+  моделей внешних библиотек;
+- содержит `sourceId` (UUID),
+  а не Domain `Source`.
+
+Модель (реализована в TASK 21):
+
+```text
+ParsedOutage(
+    UUID sourceId,
+    Instant startTime,
+    Instant endTime,
+    String reason,
+    String externalReference,
+    List<AddressInput> addresses
+)
+```
+
+Переход `ParsedOutage.source`
+→ `ParsedOutage.sourceId`
+реализован в TASK 21.
+
+Не описывать `Source`
+как часть `ParsedOutage`.
 
 ---
 
@@ -593,19 +775,113 @@ canonical Address identity.
 
 ---
 
+# Scheduler Boundary
+
+Scheduler является
+Infrastructure
+компонентом,
+отвечающим
+за периодический запуск
+активных Source.
+
+Последовательность (целевая, TASK 21):
+
+```text
+Source (активные через SourcePort)
+    ↓
+Scheduler — определяет момент запуска активного Source
+    ↓
+Provider Registry — находит Provider по providerType
+    ↓
+ProviderContext (sourceId + String configuration)
+    ↓
+OutageProvider.fetch(context) — получает внешние данные
+    ↓
+List<ParsedOutage> (с sourceId) — возвращает внутренний результат
+    ↓
+Outage Processing Pipeline (DuplicateResolver → PowerOutage …)
+```
+
+Scheduler:
+
+- определяет момент запуска
+  на основе `Source.schedule` (cron, `String`);
+- работает только с активными Source;
+- получает активных Source
+  через специализированный запрос `SourcePort`;
+- для одного Source
+  не допускает параллельных запусков;
+- передаёт управление
+  Provider Registry → Provider.
+
+Scheduler не смешивается
+с дальнейшим Outage Processing Pipeline.
+
+Outage Processing Pipeline
+начинается
+после получения `ParsedOutage`.
+
+## Жизненный цикл расписаний
+
+Расписания
+формируются однократно
+при старте приложения
+из текущего списка
+активных Source
+через `SourcePort.findAllActive()`.
+
+Последующие изменения
+`Source` в БД
+не обновляют
+уже созданные расписания
+автоматически;
+новая конфигурация
+применяется только
+после повторного планирования /
+перезапуска приложения.
+
+Динамическое rescheduling
+в TASK 21 не реализовано
+и требует отдельного
+архитектурного решения.
+
+---
+
 # Provider Failure Isolation
 
 Ошибка обработки
-одного Provider
+одного Source / Provider
 не должна останавливать
-обработку остальных Provider.
+обработку остальных Source.
+
+В том числе:
+
+- исключение в `OutageProvider.fetch`
+  для одного Source;
+- отсутствующий Provider
+  по `providerType` (ошибка конфигурации
+  конкретного Source).
+
+Отсутствующий Provider
+должен быть ошибкой
+конкретного Source,
+а не остановкой
+всей итерации Scheduler.
 
 Provider должен
 обрабатываться независимо.
 
+Для одного Source
+одновременно
+не допускается
+более одного выполняющегося запуска
+(защита от перекрытия cron-интервалов).
+
 Временные ошибки
 могут быть повторно
-обработаны Scheduler.
+обработаны Scheduler
+при следующем запуске
+по cron-расписанию.
 
 ---
 
@@ -619,16 +895,18 @@ Provider должен
 - Matching Engine;
 - Notification Engine;
 - существующих Provider;
-- общего ParsedOutage contract.
+- общего ParsedOutage contract (кроме `sourceId` перехода).
 
 Для нового Provider
 должны быть реализованы:
 
-1. OutageProvider;
+1. OutageProvider с `providerType()` / `fetch(ProviderContext)`;
 2. соответствующий Adapter
    при необходимости;
 3. регистрация Provider
-   в Provider Registry.
+   в Provider Registry
+   (автоматически через Spring-бобы,
+   duplicate `providerType` — ошибка).
 
 ---
 
@@ -644,16 +922,18 @@ Provider должен
   для конкретного Provider;
 - заменить scraper/parser
   без изменения Domain Model;
-- постепенно переходить
-  от одного внешнего решения
-  к другому;
-- использовать browser automation
-  только там, где она необходима;
-- использовать document processors
-  только для соответствующих
-  document-based источников;
+- передавать Provider
+  только минимальный `ProviderContext`
+  (`sourceId` + `String configuration`);
+- централизованно находить Provider
+  по `providerType` через `find`;
+- изолировать ошибки одного Source
+  от остальных;
 - тестировать внутреннюю модель
-  независимо от внешнего scraping stack.
+  независимо от внешнего scraping stack;
+- сохранить `Source.schedule`
+  как простой `String` cron
+  без доменной логики планирования.
 
 ---
 
@@ -670,7 +950,12 @@ Provider должен
   с выбранной технологией;
 - потенциальному усложнению deployment,
   если конкретная технология
-  требует отдельного runtime.
+  требует отдельного runtime;
+- необходимости реализовать
+  в TASK 21 новые контракты
+  `ProviderContext`, `OutageProvider.fetch`,
+  `ProviderRegistry.find` и переход
+  `ParsedOutage.source` → `sourceId`.
 
 Данные последствия
 признаны допустимыми.
@@ -683,9 +968,11 @@ Provider должен
 на:
 
 - OutageProvider;
+- ProviderContext;
 - Provider Registry;
 - Adapter Layer;
 - Scheduler;
+- Source / SourcePort;
 - ParsedOutage;
 - Parser;
 - Outage Processing Pipeline.
@@ -711,7 +998,6 @@ dependencies добавляются
 - Python/Rust runtime integration;
 - container architecture
   для scraper;
-- ParsedOutage detailed contract;
 - AddressService implementation;
 - Address normalization algorithms;
 - Matching algorithms.
@@ -779,10 +1065,28 @@ AnyDoc
 
 **Accepted**
 
-Версия 1.1 уточняет
-существующее архитектурное решение
-и фиксирует предпочтительные
-технологии для Infrastructure.
+Версия 1.2 уточняет
+целевой контракт TASK 21:
+
+- Source.schedule как `String` cron,
+  Scheduler только для активных Source
+  через специализированный `SourcePort`,
+  без `nextRunAt` / `shouldRunNow` в Domain,
+  с защитой от параллельных запусков
+  одного Source и изоляцией ошибок Source;
+- Application-level `ProviderContext`
+  (`sourceId` + `String configuration`,
+  без `Source` и без `JsonNode`);
+- OutageProvider с `providerType()` /
+  `fetch(ProviderContext)` → `List<ParsedOutage>`;
+- ParsedOutage с `sourceId` (UUID) вместо `Source`
+  как целевой контракт (переход в TASK 21);
+- ProviderRegistry с минимальным
+  `find(providerType) → Optional<OutageProvider>`,
+  неизменяемым индексом
+  и duplicate `providerType` как ошибкой конфигурации;
+- уточнённый Scheduler → Registry → Provider flow
+  перед Outage Processing Pipeline.
 
 Изменение общей
 OutageProvider architecture

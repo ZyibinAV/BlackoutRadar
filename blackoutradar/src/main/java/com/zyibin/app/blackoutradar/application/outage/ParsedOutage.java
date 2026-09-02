@@ -1,13 +1,13 @@
 package com.zyibin.app.blackoutradar.application.outage;
 
 import com.zyibin.app.blackoutradar.application.address.AddressInput;
-import com.zyibin.app.blackoutradar.domain.outage.Source;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 public record ParsedOutage(
-        Source source,
+        UUID sourceId,
         Instant startTime,
         Instant endTime,
         String reason,
@@ -15,7 +15,7 @@ public record ParsedOutage(
         List<AddressInput> addresses
 ) {
     public ParsedOutage {
-        Objects.requireNonNull(source, "source must not be null");
+        Objects.requireNonNull(sourceId, "sourceId must not be null");
         Objects.requireNonNull(startTime, "startTime must not be null");
         Objects.requireNonNull(endTime, "endTime must not be null");
         if (!startTime.isBefore(endTime)) {

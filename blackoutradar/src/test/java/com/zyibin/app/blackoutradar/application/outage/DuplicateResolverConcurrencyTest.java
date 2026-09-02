@@ -50,7 +50,7 @@ class DuplicateResolverConcurrencyTest {
         // Create ParsedOutage with two addresses (canonical will be resolved)
         AddressInput in1 = new AddressInput("Регион-" + suffix, null, null, "Город-" + suffix, null, "ул Ленина-" + suffix, "15");
         AddressInput in2 = new AddressInput("Регион-" + suffix, null, null, "Город-" + suffix, null, "ул Мира-" + suffix, "10");
-        ParsedOutage parsed = new ParsedOutage(source, start, end, "Причина", null, List.of(in1, in2));
+        ParsedOutage parsed = new ParsedOutage(source.id(), start, end, "Причина", null, List.of(in1, in2));
 
         int workers = 8;
         ExecutorService executor = Executors.newFixedThreadPool(workers);
@@ -141,7 +141,7 @@ class DuplicateResolverConcurrencyTest {
         Instant end = Instant.parse("2026-01-01T05:00:00Z");
         String extRef = "ext-" + suffix;
         AddressInput in1 = new AddressInput("Регион-" + suffix, null, null, "Город-" + suffix, null, "ул Ленина-" + suffix, "15");
-        ParsedOutage parsed = new ParsedOutage(source, start, end, "Причина", extRef, List.of(in1));
+        ParsedOutage parsed = new ParsedOutage(source.id(), start, end, "Причина", extRef, List.of(in1));
 
         int workers = 8;
         ExecutorService executor = Executors.newFixedThreadPool(workers);

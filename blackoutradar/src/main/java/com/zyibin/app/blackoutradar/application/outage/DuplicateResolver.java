@@ -3,10 +3,13 @@ package com.zyibin.app.blackoutradar.application.outage;
 import com.zyibin.app.blackoutradar.domain.address.Address;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutage;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutageAddress;
+import com.zyibin.app.blackoutradar.domain.outage.Source;
 import com.zyibin.app.blackoutradar.domain.outage.port.PowerOutagePort;
+import com.zyibin.app.blackoutradar.domain.outage.port.SourcePort;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -18,9 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class DuplicateResolver {
 
     private final PowerOutagePort powerOutagePort;
+    private final SourcePort sourcePort;
 
-    public DuplicateResolver(PowerOutagePort powerOutagePort) {
+    public DuplicateResolver(PowerOutagePort powerOutagePort, SourcePort sourcePort) {
         this.powerOutagePort = Objects.requireNonNull(powerOutagePort);
+        this.sourcePort = Objects.requireNonNull(sourcePort);
     }
 
     @Transactional
@@ -39,7 +44,7 @@ public class DuplicateResolver {
     }
 
     private ResolutionResult resolveByExternalReference(ParsedOutage parsedOutage, List<Address> canonicalAddresses, String externalReference) {
-        var existingOpt = powerOutagePort.findBySourceAndExternalReference(parsedOutage.source().id(), externalReference);
+        var existingOpt = powerOutagePort.findBySourceAndExternalReference(parsedOutage.sourceId(), externalReference);
         if (existingOpt.isEmpty()) {
             PowerOutage created = createPowerOutage(parsedOutage, canonicalAddresses);
             var result = powerOutagePort.tryCreateWithExternalReference(created, externalReference);
@@ -65,7 +70,7 @@ public class DuplicateResolver {
 
     private ResolutionResult resolveByFallback(ParsedOutage parsedOutage, List<Address> canonicalAddresses) {
         Set<UUID> addressIds = canonicalAddresses.stream().map(Address::id).collect(Collectors.toSet());
-        var existingOpt = powerOutagePort.findBySourceAndFallbackIdentity(parsedOutage.source().id(), parsedOutage.startTime(), addressIds);
+        var existingOpt = powerOutagePort.findBySourceAndFallbackIdentity(parsedOutage.sourceId(), parsedOutage.startTime(), addressIds);
         if (existingOpt.isEmpty()) {
             PowerOutage created = createPowerOutage(parsedOutage, canonicalAddresses);
             var result = powerOutagePort.tryCreateWithFallback(created);
@@ -90,12 +95,18 @@ public class DuplicateResolver {
     }
 
     private PowerOutage createPowerOutage(ParsedOutage parsedOutage, List<Address> canonicalAddresses) {
+        Source source = resolveSource(parsedOutage.sourceId());
         Set<UUID> seen = new java.util.HashSet<>();
         Collection<PowerOutageAddress> poas = canonicalAddresses.stream()
                 .filter(addr -> seen.add(addr.id()))
                 .map(addr -> PowerOutageAddress.unboundOf(UUID.randomUUID(), addr))
                 .collect(Collectors.toList());
-        return PowerOutage.of(UUID.randomUUID(), parsedOutage.source(), parsedOutage.startTime(), parsedOutage.endTime(), parsedOutage.reason(), "АКТИВНО", poas);
+        return PowerOutage.of(UUID.randomUUID(), source, parsedOutage.startTime(), parsedOutage.endTime(), parsedOutage.reason(), "АКТИВНО", poas);
+    }
+
+    private Source resolveSource(UUID sourceId) {
+        return sourcePort.findById(sourceId)
+                .orElseThrow(() -> new NoSuchElementException("Source not found: " + sourceId));
     }
 
     private PowerOutage updatePowerOutage(PowerOutage existing, ParsedOutage parsedOutage, List<Address> canonicalAddresses) {

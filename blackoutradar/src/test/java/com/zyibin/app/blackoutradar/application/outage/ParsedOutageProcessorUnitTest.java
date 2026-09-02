@@ -44,7 +44,7 @@ class ParsedOutageProcessorUnitTest {
         when(addressService.resolve(in1)).thenReturn(a1);
         when(addressService.resolve(in2)).thenReturn(a2);
 
-        ParsedOutage po = new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", "ext-1", List.of(in1, in2));
+        ParsedOutage po = new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", "ext-1", List.of(in1, in2));
         List<Address> result = processor.resolveAddresses(po);
 
         assertEquals(2, result.size());
@@ -65,8 +65,8 @@ class ParsedOutageProcessorUnitTest {
         Address addr = Address.of(UUID.randomUUID(), street, new House("15", null, "15"));
         when(addressService.resolve(in)).thenReturn(addr);
 
-        ParsedOutage withRef = new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", "ext-123", List.of(in));
-        ParsedOutage withoutRef = new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(in));
+        ParsedOutage withRef = new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", "ext-123", List.of(in));
+        ParsedOutage withoutRef = new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(in));
 
         assertNotNull(withRef.externalReference());
         assertEquals("ext-123", withRef.externalReference());

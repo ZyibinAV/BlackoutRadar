@@ -21,8 +21,8 @@ class ParsedOutageTest {
     void creationWithAllFields() {
         Instant start = Instant.parse("2026-01-01T00:00:00Z");
         Instant end = Instant.parse("2026-01-01T05:00:00Z");
-        ParsedOutage po = new ParsedOutage(source, start, end, "Аварийное", "ext-123", List.of(addr1, addr2));
-        assertEquals(source, po.source());
+        ParsedOutage po = new ParsedOutage(source.id(), start, end, "Аварийное", "ext-123", List.of(addr1, addr2));
+        assertEquals(source.id(), po.sourceId());
         assertEquals(start, po.startTime());
         assertEquals(end, po.endTime());
         assertEquals("Аварийное", po.reason());
@@ -32,46 +32,46 @@ class ParsedOutageTest {
 
     @Test
     void externalReferenceCanBeNull() {
-        ParsedOutage po = new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(addr1));
+        ParsedOutage po = new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(addr1));
         assertNull(po.externalReference());
     }
 
     @Test
     void externalReferenceBlankRejected() {
         assertThrows(IllegalArgumentException.class, () ->
-                new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", "   ", List.of(addr1)));
+                new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", "   ", List.of(addr1)));
     }
 
     @Test
     void rejectsEmptyAddresses() {
         assertThrows(IllegalArgumentException.class, () ->
-                new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of()));
+                new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of()));
     }
 
     @Test
     void rejectsNullAddressInList() {
         assertThrows(NullPointerException.class, () ->
-                new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(addr1, null)));
+                new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(addr1, null)));
     }
 
     @Test
     void rejectsBlankReason() {
         assertThrows(IllegalArgumentException.class, () ->
-                new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "   ", null, List.of(addr1)));
+                new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "   ", null, List.of(addr1)));
     }
 
     @Test
     void rejectsInvalidTimeRange() {
         Instant now = Instant.now();
         assertThrows(IllegalArgumentException.class, () ->
-                new ParsedOutage(source, now, now, "r", null, List.of(addr1)));
+                new ParsedOutage(source.id(), now, now, "r", null, List.of(addr1)));
         assertThrows(IllegalArgumentException.class, () ->
-                new ParsedOutage(source, now.plusSeconds(3600), now, "r", null, List.of(addr1)));
+                new ParsedOutage(source.id(), now.plusSeconds(3600), now, "r", null, List.of(addr1)));
     }
 
     @Test
     void addressesAreImmutable() {
-        ParsedOutage po = new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(addr1));
+        ParsedOutage po = new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(addr1));
         assertThrows(UnsupportedOperationException.class, () -> po.addresses().add(addr2));
     }
 }

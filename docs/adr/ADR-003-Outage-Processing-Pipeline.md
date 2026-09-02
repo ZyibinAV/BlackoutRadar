@@ -18,7 +18,7 @@
 
 ## Версия
 
-1.1
+1.2
 
 ---
 
@@ -68,7 +68,7 @@
 
 **Дата:** 2026-08-14
 
-**Версия:** 1.1
+**Версия:** 1.2
 
 ---
 
@@ -227,8 +227,6 @@ Notification Engine
 
 Pipeline разделяет:
 
-- получение внешних данных;
-- формирование временной модели;
 - дедупликацию;
 - создание постоянного события;
 - поиск кандидатов;
@@ -236,32 +234,29 @@ Pipeline разделяет:
 - создание Notification;
 - доставку Notification.
 
+> Уточнение TASK 21:
+> Scheduler и Provider Subsystem
+> (`Source` → `Scheduler` → `Provider Registry` → `ProviderContext` → `OutageProvider` → `ParsedOutage`)
+> находятся **перед** входом `ParsedOutage`
+> в Processing Pipeline
+> и не смешиваются с самим Pipeline.
+> Pipeline начинается с уже полученного `ParsedOutage`
+> (целевой контракт `ParsedOutage` с `sourceId`).
+> Сам Pipeline
+> при этом не изменяется.
+
 ---
 
 # Этапы Pipeline
 
-## 1. Получение информации
+> Pipeline начинается
+> с `DuplicateResolver`
+> и уже полученного `ParsedOutage`.
+> Получение данных (`Source` → `Scheduler` → `Provider Registry` → `ProviderContext` → `OutageProvider` → `ParsedOutage`)
+> относится к Parser Subsystem (см. ADR-004, 04-PARSER)
+> и находится перед Pipeline.
 
-OutageProvider получает информацию
-из внешнего источника.
-
-Provider ничего не знает
-о внутренней модели системы.
-
----
-
-## 2. Формирование ParsedOutage
-
-Полученные данные
-преобразуются
-во внутреннюю временную модель.
-
-ParsedOutage
-не является сущностью базы данных.
-
----
-
-## 3. Дедупликация
+## 1. Дедупликация
 
 DuplicateResolver определяет:
 
@@ -274,7 +269,7 @@ DuplicateResolver определяет:
 
 ---
 
-## 4. Поиск кандидатов
+## 2. Поиск кандидатов
 
 CandidateFinder
 выполняет предварительный поиск
@@ -285,7 +280,7 @@ CandidateFinder
 
 ---
 
-## 5. Сопоставление
+## 3. Сопоставление
 
 Matching Engine
 проверяет:
@@ -304,7 +299,7 @@ Matching Engine
 
 ---
 
-## 6. Создание Notification
+## 4. Создание Notification
 
 После успешного Match
 Application / Processing Flow
@@ -343,7 +338,7 @@ Application / Processing Flow.
 
 ---
 
-## 7. Передача Notification
+## 5. Передача Notification
 
 После создания Notification
 Application / Processing Flow
@@ -365,7 +360,7 @@ Notification Engine
 
 ---
 
-## 8. Обработка Notification
+## 6. Обработка Notification
 
 Notification Engine
 принимает Notification
@@ -949,58 +944,53 @@ Domain Model.
 
 # Изменение ADR
 
-Версия 1.1 уточняет
+Версия 1.1 уточнила
 существующее архитектурное решение
-и не изменяет
-основной Pipeline.
+и не изменяла
+основной Pipeline
+(выделение Application / Processing Flow
+между Match и Notification,
+разделение Notification Domain lifecycle,
+Notification Engine processing,
+Retry Processing, Delivery Attempt).
 
-Основная последовательность
-остаётся:
+Версия 1.2 уточняет
+границу Pipeline:
 
-OutageProvider
+- `OutageProvider` и `ParsedOutage`
+  исключены из списка этапов Pipeline;
+- Pipeline начинается
+  с `DuplicateResolver`
+  (уже полученный `ParsedOutage`
+  приходит извне);
+- основная последовательность Pipeline:
 
-↓
-
-ParsedOutage
-
-↓
-
+```text
 DuplicateResolver
-
 ↓
-
 PowerOutage
-
 ↓
-
 CandidateFinder
-
 ↓
-
 Matching Engine
-
 ↓
-
-Notification
-
+Match
 ↓
-
-Notification Engine
-
-Уточнение версии 1.1
-состоит в явном выделении
 Application / Processing Flow
-между Match и Notification.
+↓
+Notification
+↓
+Notification Engine
+```
 
-Также явно разделены:
-
-- Notification Domain lifecycle;
-- Notification Engine processing;
-- Retry Processing;
-- Delivery Attempt.
+Предшествующая цепочка
+`Source` → `Scheduler` → `Provider Registry` → `ProviderContext` → `OutageProvider` → `ParsedOutage`
+относится к Parser Subsystem (ADR-004, 04-PARSER)
+и находится перед Pipeline.
 
 Новое архитектурное решение
-для этого не требуется.
+для данного уточнения
+не требуется.
 
 ---
 

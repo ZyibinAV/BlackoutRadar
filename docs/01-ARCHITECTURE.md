@@ -90,23 +90,58 @@ Application Layer
 
 # Общая схема системы
 
+> Scheduler и Provider Registry
+> находятся перед OutageProvider
+> и не смешиваются
+> с дальнейшим Outage Processing Pipeline.
+
                      +-----------------------+
                      |  External Sources     |
                      +-----------+-----------+
                                  |
                                  v
                       +----------------------+
+                      |      Source          |
+                      | (активные через     |
+                      |  SourcePort)         |
+                      +----------+-----------+
+                                 |
+                                 v
+                      +----------------------+
+                      |     Scheduler        |
+                      | (cron String,        |
+                      |  только активные)    |
+                      +----------+-----------+
+                                 |
+                                 v
+                      +----------------------+
+                      | Provider Registry    |
+                      | find(providerType)   |
+                      +----------+-----------+
+                                 |
+                                 v
+                      +----------------------+
+                      | ProviderContext      |
+                      | sourceId +           |
+                      | String configuration |
+                      +----------+-----------+
+                                 |
+                                 v
+                      +----------------------+
                       |   OutageProvider     |
+                      | providerType()       |
+                      | fetch(context)       |
                       +----------+-----------+
                                  |
                                  v
                       +----------------------+
-                      |   ParsedOutage       |
-                      +----------+-----------+
+                       |   ParsedOutage       |
+                       | (sourceId)           |
+                       +----------+-----------+
                                  |
                                  v
                       +----------------------+
-                      | DuplicateResolver    |
+                       | DuplicateResolver    |
                       +----------+-----------+
                                  |
                                  v
@@ -252,11 +287,48 @@ Application / Processing Flow
 
 Отвечает
 за получение информации
-из внешних источников.
+из внешних источников
+через последовательность:
+
+```text
+Source (активные через SourcePort)
+    ↓
+Scheduler — определяет момент запуска активного Source
+    ↓
+Provider Registry — находит Provider по providerType
+    ↓
+ProviderContext (sourceId + String configuration)
+    ↓
+OutageProvider — получает внешние данные
+    ↓
+ParsedOutage (sourceId) — возвращает внутренний результат
+```
+
+Scheduler работает
+только с активными Source
+и использует `schedule` как `String` cron.
+
+`ProviderContext.configuration`
+имеет тип `String`, а не `JsonNode`.
+
+Контракт
+`ProviderRegistry.find(providerType) → Optional<OutageProvider>`
+и `ParsedOutage.sourceId`
+реализованы в TASK 21.
+
+Жизненный цикл расписаний:
+расписания формируются однократно
+при старте приложения
+через `SourcePort.findAllActive()`;
+изменения `Source` в БД
+применяются только
+после повторного планирования /
+перезапуска.
 
 Подробнее:
 
 [ADR-004 — OutageProvider Architecture](adr/ADR-004-OutageProvider-Architecture.md)
+[04-PARSER](04-PARSER.md)
 
 ---
 
@@ -265,10 +337,9 @@ Application / Processing Flow
 Обрабатывает информацию
 об отключениях.
 
-Основные этапы:
+Основные этапы
+(начинается с уже полученного `ParsedOutage`):
 
-- OutageProvider;
-- ParsedOutage;
 - DuplicateResolver;
 - PowerOutage;
 - CandidateFinder;
@@ -276,6 +347,11 @@ Application / Processing Flow
 - Application / Processing Flow;
 - Notification;
 - Notification Engine.
+
+Получение данных
+`Source` → `Scheduler` → `Provider Registry` → `ProviderContext` → `OutageProvider` → `ParsedOutage`
+относится к Provider Subsystem
+и находится перед Pipeline.
 
 Подробнее:
 
@@ -477,14 +553,23 @@ Domain Model
 
 ## Outage Processing
 
-External Sources
+> Scheduler и Provider Subsystem
+> находятся перед входом `ParsedOutage`
+> в Processing Pipeline
+> и не смешиваются с самим Pipeline.
+> Pipeline начинается с `ParsedOutage`.
 
-↓
-
-Provider
-
-↓
-
+```text
+Source (активные через SourcePort)
+    ↓
+Scheduler (только активные, cron String, без nextRunAt)
+    ↓
+Provider Registry — find(providerType)
+    ↓
+ProviderContext (sourceId + String configuration)
+    ↓
+OutageProvider — fetch → List<ParsedOutage> (sourceId)
+    ↓
 ParsedOutage
 
 ↓

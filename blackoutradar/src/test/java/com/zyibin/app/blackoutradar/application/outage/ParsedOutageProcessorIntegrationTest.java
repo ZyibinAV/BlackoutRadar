@@ -27,7 +27,7 @@ class ParsedOutageProcessorIntegrationTest {
         Source source = Source.of(UUID.randomUUID(), "src", "ТЕЛЕГРАМ", "Официальный", "0 6 * * *", true);
         AddressInput in1 = new AddressInput("Омская область", null, null, "Омск", null, "ул Ленина", "15");
         AddressInput in2 = new AddressInput("Омская область", null, null, "Омск", null, "ул Мира", "10");
-        ParsedOutage po = new ParsedOutage(source, Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(in1, in2));
+        ParsedOutage po = new ParsedOutage(source.id(), Instant.now(), Instant.now().plusSeconds(3600), "r", null, List.of(in1, in2));
 
         List<Address> result = processor.resolveAddresses(po);
 

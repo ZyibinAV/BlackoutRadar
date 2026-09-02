@@ -51,7 +51,7 @@ class OutageProcessingServiceTest {
         Instant start = Instant.parse("2026-01-01T00:00:00Z");
         Instant end = Instant.parse("2026-01-01T02:00:00Z");
         AddressInput input = new AddressInput("Омская область", null, null, "Омск", null, "ул Ленина", "15");
-        parsedOutage = new ParsedOutage(source, start, end, "reason", "ext-1", List.of(input));
+        parsedOutage = new ParsedOutage(source.id(), start, end, "reason", "ext-1", List.of(input));
 
         Region region = Region.of(UUID.randomUUID(), "ОМСКАЯ ОБЛАСТЬ");
         City city = City.of(UUID.randomUUID(), region, "ОМСК");
