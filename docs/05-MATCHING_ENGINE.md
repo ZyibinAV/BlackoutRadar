@@ -91,17 +91,15 @@ PowerOutage
 ↓
 
 CandidateFinder
-
 ↓
-
 Matching Engine
-
 ↓
-
+Match
+↓
+Application / Processing Flow
+↓
 Notification
-
 ↓
-
 Notification Engine
 
 ---
@@ -324,14 +322,30 @@ PowerOutage.
 
 ## Ответственность
 
-Match отвечает за:
+Match представляет
+положительный результат
+сопоставления.
 
-- передачу результата
-  в Notification Engine;
+Match содержит:
 
-- хранение информации
-  о найденном совпадении
-  до завершения обработки.
+- Subscription;
+- PowerOutage.
+
+Match передается
+в Application / Processing Flow
+как результат Matching.
+
+Application / Processing Flow
+использует Match
+для создания Notification.
+
+Создание Match
+↓
+Передача в Application / Processing Flow
+↓
+Создание Notification
+↓
+Завершение обработки
 
 ---
 
