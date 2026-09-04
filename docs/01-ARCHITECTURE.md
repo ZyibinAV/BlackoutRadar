@@ -332,6 +332,28 @@ Scheduler работает
 
 ---
 
+### Matching Integration
+
+Application-level Matching boundary,
+созданная как временная часть TASK 16,
+удалена после реализации TASK 24.
+
+Текущая граница Matching:
+
+CandidateFinder
+→ Application `Candidate`
+→ Subscription
+→ Domain MatchingEngine
+→ Match.
+
+OutageProcessingService
+не зависит от:
+- MatchingBoundary;
+- NoOpMatchingBoundary;
+- PowerOutageMatchingService.
+
+Matching Engine является фактической
+Domain-level реализацией Matching.
 ## Processing Pipeline
 
 Обрабатывает информацию
@@ -384,6 +406,49 @@ Matching Engine
 - выбор канала доставки;
 - доставку;
 - Retry.
+
+CandidateFinder является Application-level
+механизмом предварительного поиска.
+
+CandidateFinder возвращает временные
+Application-level `Candidate`.
+
+`Candidate` не передается в Domain Matching Engine.
+
+Application / Processing Flow
+извлекает `Subscription` из `Candidate`
+и передает в Matching Engine:
+
+CandidateFinder
+→ Candidate
+→ Subscription
+→ Matching Engine
+→ Match.
+
+Matching Engine принимает:
+- PowerOutage;
+- List<Subscription>.
+
+Matching Engine не зависит от Application `Candidate`.
+
+OutageProcessingService
+координирует переход:
+
+ParsedOutage
+→ ParsedOutageProcessor
+→ DuplicateResolver
+→ PowerOutage
+→ CandidateFinder
+→ Matching Engine
+→ Match.
+
+При `DuplicateResolver.Decision.IGNORE`
+CandidateFinder и Matching Engine
+не вызываются.
+
+Полученный `Match` возвращается
+в Application / Processing Flow
+для следующего этапа Notification.
 
 Подробнее:
 
@@ -559,7 +624,7 @@ Domain Model
 > и не смешиваются с самим Pipeline.
 > Pipeline начинается с `ParsedOutage`.
 
-```text
+
 Source (активные через SourcePort)
     ↓
 Scheduler (только активные, cron String, без nextRunAt)
