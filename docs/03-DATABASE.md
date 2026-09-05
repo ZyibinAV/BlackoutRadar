@@ -1060,6 +1060,19 @@ Notification не хранит
 техническую зависимость
 от Match.
 
+Для каждой пары
+Subscription + PowerOutage
+хранится не более одного Notification.
+
+Уникальность физически обеспечивается
+ограничением:
+
+UNIQUE(subscription_id, power_outage_id).
+
+Application / Processing Flow
+использует эту уникальность
+для идемпотентного создания Notification.
+
 ### Поля
 
 | Поле | Тип | NULL | Ограничения |

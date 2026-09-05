@@ -18,7 +18,7 @@
 
 ## Версия
 
-1.2
+1.3
 
 ---
 
@@ -68,7 +68,7 @@
 
 **Дата:** 2026-08-14
 
-**Версия:** 1.2
+**Версия:** 1.3
 
 ---
 
@@ -315,6 +315,14 @@ Notification
 не имеет технической
 зависимости от Match.
 
+Текст Notification
+формируется на уровне Application
+до создания Domain Notification.
+
+Notification Domain
+не определяет конкретный формат
+текста сообщения.
+
 Match является
 временным результатом
 Matching Engine.
@@ -335,6 +343,66 @@ Notification
 после успешного Match
 является правилом
 Application / Processing Flow.
+
+### 4.1. Idempotent Creation
+
+Application / Processing Flow
+перед созданием Notification
+проверяет наличие существующего
+Notification для пары:
+
+Subscription
++
+PowerOutage.
+
+Используется существующий
+NotificationPort.
+
+Если Notification
+для данной пары уже существует,
+новый Notification
+не создаётся.
+
+Если Notification
+для данной пары отсутствует,
+Application / Processing Flow
+создаёт новый Notification
+со статусом PENDING
+и сохраняет его через NotificationPort.
+
+Таким образом:
+
+существующий Notification
+→ пропуск создания
+
+отсутствующий Notification
+→ создание Notification
+→ PENDING.
+
+Правило:
+
+Subscription + PowerOutage
+→ не более одного Notification.
+
+Application использует проверку
+существующего Notification
+для идемпотентности повторной
+обработки одного и того же Match.
+
+Физическая защита уникальности
+остаётся ответственностью
+Persistence / Database через:
+
+UNIQUE(subscription_id, power_outage_id).
+
+Application не использует
+DataIntegrityViolationException
+как механизм обычного управления
+этой конкуренцией.
+
+JVM locks, synchronized
+и другие Application-level locks
+не используются.
 
 ---
 

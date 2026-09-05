@@ -475,6 +475,33 @@ Notification:
 - не зависит технически от Match;
 - не определяет канал доставки.
 
+## Notification Uniqueness
+
+Для одной пары:
+
+Subscription
++
+PowerOutage
+
+допускается
+не более одного Notification.
+
+Это является доменным правилом.
+
+Идемпотентность создания
+обеспечивается Application /
+Processing Flow.
+
+Application перед созданием
+Notification проверяет существующий
+Notification через NotificationPort.
+
+Физическая защита уникальности
+обеспечивается Persistence / Database.
+
+Notification не получает
+техническую зависимость от Match.
+
 ---
 
 ## NotificationStatus

@@ -255,17 +255,31 @@ Notification
 Application / Processing Flow
 создает Notification.
 
-Notification
-не имеет технической
+Перед созданием Notification
+Application проверяет,
+существует ли Notification
+для пары Subscription + PowerOutage.
+
+Существующий Notification
+не создается повторно.
+
+Notification не имеет технической
 зависимости от Match.
 
 Match остается
 временным результатом
 Matching Engine.
 
+Текст Notification
+формируется на уровне Application.
+
 Application / Processing Flow
 передает готовый Notification
 в Notification Engine.
+
+Физическая уникальность
+Subscription + PowerOutage
+обеспечивается Persistence / Database.
 
 ---
 

@@ -136,21 +136,27 @@ Notification Domain отвечает за:
 
 - Subscription;
 - PowerOutage;
-- текст уведомления;
+- хранение текста Notification;
 - состояние Notification;
-- предотвращение повторного уведомления;
+- доменные правила Notification;
 - сохранение истории Notification.
 
-Notification Domain
-не зависит от:
+Формат и содержание текста
+определяются на уровне
+Application / Processing Flow.
 
-- Spring;
-- JPA;
-- Hibernate;
-- PostgreSQL;
-- SMTP;
-- Telegram;
-- конкретных Delivery Adapter.
+Notification Domain
+не определяет конкретный
+формат сообщения.
+
+Предотвращение повторного
+создания Notification
+координируется на уровне
+Application / Processing Flow
+через NotificationPort.
+
+Физическая защита уникальности
+обеспечивается Persistence / Database.
 
 ---
 
@@ -187,29 +193,35 @@ Notification создаётся
 в Application / Processing Flow
 после успешного Match.
 
-Notification Engine
-не знает о технической реализации
-Match и не зависит от объекта Match.
+Перед созданием Application
+проверяет наличие Notification
+для пары:
 
-Pipeline:
+Subscription + PowerOutage.
 
-Match
+Если Notification уже существует,
+новый Notification не создаётся.
 
-↓
+Если Notification отсутствует,
+Application:
 
-Application / Processing Flow
+1. формирует текст Notification;
+2. создаёт Notification
+   со статусом PENDING;
+3. сохраняет Notification
+   через NotificationPort.
 
-↓
+Формирование текста
+не является ответственностью
+Notification Engine.
 
-Notification
-
-↓
-
-Notification Engine
-
-Таким образом,
 Notification Engine получает
 уже готовый Notification.
+
+Notification Engine
+не создаёт Notification
+и не принимает решение
+о необходимости его создания.
 
 ---
 

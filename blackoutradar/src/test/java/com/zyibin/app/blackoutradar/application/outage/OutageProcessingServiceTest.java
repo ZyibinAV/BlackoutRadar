@@ -1,22 +1,27 @@
 package com.zyibin.app.blackoutradar.application.outage;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import com.zyibin.app.blackoutradar.application.address.AddressInput;
 import com.zyibin.app.blackoutradar.application.matching.Candidate;
 import com.zyibin.app.blackoutradar.application.matching.CandidateFinder;
+import com.zyibin.app.blackoutradar.application.notification.NotificationMessageFactory;
 import com.zyibin.app.blackoutradar.domain.address.Address;
 import com.zyibin.app.blackoutradar.domain.address.City;
 import com.zyibin.app.blackoutradar.domain.address.House;
@@ -27,6 +32,9 @@ import com.zyibin.app.blackoutradar.domain.identity.User;
 import com.zyibin.app.blackoutradar.domain.identity.UserRole;
 import com.zyibin.app.blackoutradar.domain.matching.Match;
 import com.zyibin.app.blackoutradar.domain.matching.MatchingEngine;
+import com.zyibin.app.blackoutradar.domain.notification.Notification;
+import com.zyibin.app.blackoutradar.domain.notification.NotificationStatus;
+import com.zyibin.app.blackoutradar.domain.notification.port.NotificationPort;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutage;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutageAddress;
 import com.zyibin.app.blackoutradar.domain.outage.Source;
@@ -34,6 +42,7 @@ import com.zyibin.app.blackoutradar.domain.subscription.Subscription;
 import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,10 +54,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class OutageProcessingServiceTest {
 
+    private static final String MESSAGE =
+            "Power outage: 2026-01-01T00:00:00Z - 2026-01-01T02:00:00Z. Reason: reason";
+
     @Mock private ParsedOutageProcessor parsedOutageProcessor;
     @Mock private DuplicateResolver duplicateResolver;
     @Mock private CandidateFinder candidateFinder;
     @Mock private MatchingEngine matchingEngine;
+    @Mock private NotificationMessageFactory notificationMessageFactory;
+    @Mock private NotificationPort notificationPort;
 
     private OutageProcessingService service;
 
@@ -62,7 +76,7 @@ class OutageProcessingServiceTest {
     @BeforeEach
     void setUp() {
         service = new OutageProcessingService(parsedOutageProcessor, duplicateResolver,
-                candidateFinder, matchingEngine);
+                candidateFinder, matchingEngine, notificationMessageFactory, notificationPort);
 
         Source source = Source.of(UUID.randomUUID(), "src", "ТЕЛЕГРАМ", "Официальный", "0 6 * * *", true);
         Instant start = Instant.parse("2026-01-01T00:00:00Z");
@@ -86,6 +100,14 @@ class OutageProcessingServiceTest {
         subscription2 = Subscription.of(UUID.randomUUID(), user, address2, start, end, true, serviceAccessUntil);
     }
 
+    private void stubNotificationSaving() {
+        when(notificationPort.findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id()))
+                .thenReturn(Optional.empty());
+        when(notificationMessageFactory.createMessage(same(powerOutage))).thenReturn(MESSAGE);
+        when(notificationPort.save(any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
     @Test
     void processCreateRunsFullPipelineInOrderAndReturnsMatches() {
         List<Address> canonical = List.of(address1);
@@ -98,16 +120,22 @@ class OutageProcessingServiceTest {
         when(duplicateResolver.resolve(parsedOutage, canonical)).thenReturn(resolution);
         when(candidateFinder.findCandidates(same(powerOutage))).thenReturn(candidates);
         when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1)))).thenReturn(matches);
+        stubNotificationSaving();
 
         List<Match> result = service.process(parsedOutage);
 
         assertSame(matches, result);
-        InOrder inOrder = inOrder(parsedOutageProcessor, duplicateResolver, candidateFinder, matchingEngine);
+        InOrder inOrder = inOrder(parsedOutageProcessor, duplicateResolver, candidateFinder,
+                matchingEngine, notificationMessageFactory, notificationPort);
         inOrder.verify(parsedOutageProcessor).resolveAddresses(parsedOutage);
         inOrder.verify(duplicateResolver).resolve(parsedOutage, canonical);
         inOrder.verify(candidateFinder).findCandidates(same(powerOutage));
         inOrder.verify(matchingEngine).match(same(powerOutage), eq(List.of(subscription1)));
-        verifyNoMoreInteractions(parsedOutageProcessor, duplicateResolver, candidateFinder, matchingEngine);
+        inOrder.verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
+        inOrder.verify(notificationMessageFactory).createMessage(same(powerOutage));
+        inOrder.verify(notificationPort).save(any(Notification.class));
+        verifyNoMoreInteractions(parsedOutageProcessor, duplicateResolver, candidateFinder,
+                matchingEngine, notificationMessageFactory, notificationPort);
     }
 
     @Test
@@ -121,12 +149,136 @@ class OutageProcessingServiceTest {
         when(duplicateResolver.resolve(parsedOutage, canonical)).thenReturn(resolution);
         when(candidateFinder.findCandidates(same(powerOutage))).thenReturn(List.of(new Candidate(subscription1)));
         when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1)))).thenReturn(matches);
+        stubNotificationSaving();
 
         List<Match> result = service.process(parsedOutage);
 
         assertSame(matches, result);
         verify(candidateFinder).findCandidates(same(powerOutage));
         verify(matchingEngine).match(same(powerOutage), eq(List.of(subscription1)));
+    }
+
+    @Test
+    void oneMatchCreatesOnePendingNotification() {
+        List<Address> canonical = List.of(address1);
+        DuplicateResolver.ResolutionResult resolution =
+                new DuplicateResolver.ResolutionResult(DuplicateResolver.Decision.CREATE, powerOutage);
+        List<Match> matches = List.of(new Match(subscription1, powerOutage));
+
+        when(parsedOutageProcessor.resolveAddresses(parsedOutage)).thenReturn(canonical);
+        when(duplicateResolver.resolve(parsedOutage, canonical)).thenReturn(resolution);
+        when(candidateFinder.findCandidates(same(powerOutage))).thenReturn(List.of(new Candidate(subscription1)));
+        when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1)))).thenReturn(matches);
+        stubNotificationSaving();
+
+        List<Match> result = service.process(parsedOutage);
+
+        assertSame(matches, result);
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationPort, times(1)).save(captor.capture());
+        Notification saved = captor.getValue();
+        assertSame(subscription1, saved.subscription());
+        assertSame(powerOutage, saved.powerOutage());
+        assertEquals(NotificationStatus.PENDING, saved.status());
+        assertEquals(MESSAGE, saved.message());
+        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
+    }
+
+    @Test
+    void existingNotificationSkipsCreationAndSave() {
+        List<Address> canonical = List.of(address1);
+        DuplicateResolver.ResolutionResult resolution =
+                new DuplicateResolver.ResolutionResult(DuplicateResolver.Decision.CREATE, powerOutage);
+        List<Match> matches = List.of(new Match(subscription1, powerOutage));
+        Notification existing = Notification.of(UUID.randomUUID(), subscription1, powerOutage, MESSAGE);
+
+        when(parsedOutageProcessor.resolveAddresses(parsedOutage)).thenReturn(canonical);
+        when(duplicateResolver.resolve(parsedOutage, canonical)).thenReturn(resolution);
+        when(candidateFinder.findCandidates(same(powerOutage))).thenReturn(List.of(new Candidate(subscription1)));
+        when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1)))).thenReturn(matches);
+        when(notificationPort.findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id()))
+                .thenReturn(Optional.of(existing));
+
+        List<Match> result = service.process(parsedOutage);
+
+        assertSame(matches, result);
+        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
+        verifyNoInteractions(notificationMessageFactory);
+        verify(notificationPort, times(0)).save(any(Notification.class));
+        verifyNoMoreInteractions(notificationPort);
+    }
+
+    @Test
+    void onlyMissingNotificationsAreCreatedForMultipleMatches() {
+        List<Address> canonical = List.of(address1, address2);
+        DuplicateResolver.ResolutionResult resolution =
+                new DuplicateResolver.ResolutionResult(DuplicateResolver.Decision.CREATE, powerOutage);
+        List<Match> matches = List.of(
+                new Match(subscription1, powerOutage),
+                new Match(subscription2, powerOutage));
+        Notification existing = Notification.of(UUID.randomUUID(), subscription1, powerOutage, MESSAGE);
+
+        when(parsedOutageProcessor.resolveAddresses(parsedOutage)).thenReturn(canonical);
+        when(duplicateResolver.resolve(parsedOutage, canonical)).thenReturn(resolution);
+        when(candidateFinder.findCandidates(same(powerOutage))).thenReturn(
+                List.of(new Candidate(subscription1), new Candidate(subscription2)));
+        when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1, subscription2))))
+                .thenReturn(matches);
+        when(notificationPort.findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id()))
+                .thenReturn(Optional.of(existing));
+        when(notificationPort.findBySubscriptionAndPowerOutage(subscription2.id(), powerOutage.id()))
+                .thenReturn(Optional.empty());
+        when(notificationMessageFactory.createMessage(same(powerOutage))).thenReturn(MESSAGE);
+        when(notificationPort.save(any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<Match> result = service.process(parsedOutage);
+
+        assertSame(matches, result);
+        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
+        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription2.id(), powerOutage.id());
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationPort, times(1)).save(captor.capture());
+        Notification saved = captor.getValue();
+        assertSame(subscription2, saved.subscription());
+        assertSame(powerOutage, saved.powerOutage());
+        assertEquals(NotificationStatus.PENDING, saved.status());
+        assertEquals(MESSAGE, saved.message());
+    }
+
+    @Test
+    void multipleMatchesCreateCorrespondingNotifications() {
+        List<Address> canonical = List.of(address1, address2);
+        DuplicateResolver.ResolutionResult resolution =
+                new DuplicateResolver.ResolutionResult(DuplicateResolver.Decision.CREATE, powerOutage);
+        List<Match> matches = List.of(
+                new Match(subscription1, powerOutage),
+                new Match(subscription2, powerOutage));
+
+        when(parsedOutageProcessor.resolveAddresses(parsedOutage)).thenReturn(canonical);
+        when(duplicateResolver.resolve(parsedOutage, canonical)).thenReturn(resolution);
+        when(candidateFinder.findCandidates(same(powerOutage))).thenReturn(
+                List.of(new Candidate(subscription1), new Candidate(subscription2)));
+        when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1, subscription2))))
+                .thenReturn(matches);
+        stubNotificationSaving();
+        when(notificationPort.findBySubscriptionAndPowerOutage(subscription2.id(), powerOutage.id()))
+                .thenReturn(Optional.empty());
+
+        List<Match> result = service.process(parsedOutage);
+
+        assertSame(matches, result);
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationPort, times(2)).save(captor.capture());
+        List<Notification> saved = captor.getAllValues();
+        assertEquals(2, saved.size());
+        assertSame(subscription1, saved.get(0).subscription());
+        assertSame(subscription2, saved.get(1).subscription());
+        for (Notification notification : saved) {
+            assertSame(powerOutage, notification.powerOutage());
+            assertEquals(NotificationStatus.PENDING, notification.status());
+            assertEquals(MESSAGE, notification.message());
+        }
     }
 
     @Test
@@ -141,7 +293,7 @@ class OutageProcessingServiceTest {
         List<Match> result = service.process(parsedOutage);
 
         assertTrue(result.isEmpty());
-        verifyNoInteractions(candidateFinder, matchingEngine);
+        verifyNoInteractions(candidateFinder, matchingEngine, notificationMessageFactory, notificationPort);
         verifyNoMoreInteractions(parsedOutageProcessor, duplicateResolver);
     }
 
@@ -160,6 +312,7 @@ class OutageProcessingServiceTest {
         service.process(parsedOutage);
 
         verify(matchingEngine).match(same(powerOutage), eq(List.of(subscription1, subscription2)));
+        verifyNoInteractions(notificationMessageFactory, notificationPort);
     }
 
     @Test
@@ -177,6 +330,7 @@ class OutageProcessingServiceTest {
 
         assertTrue(result.isEmpty());
         verify(matchingEngine).match(same(powerOutage), eq(List.of()));
+        verifyNoInteractions(notificationMessageFactory, notificationPort);
     }
 
     @Test
@@ -188,7 +342,8 @@ class OutageProcessingServiceTest {
 
         assertSame(ex, thrown);
         verify(parsedOutageProcessor).resolveAddresses(parsedOutage);
-        verifyNoInteractions(duplicateResolver, candidateFinder, matchingEngine);
+        verifyNoInteractions(duplicateResolver, candidateFinder, matchingEngine,
+                notificationMessageFactory, notificationPort);
         verifyNoMoreInteractions(parsedOutageProcessor);
     }
 
@@ -206,14 +361,15 @@ class OutageProcessingServiceTest {
         InOrder inOrder = inOrder(parsedOutageProcessor, duplicateResolver);
         inOrder.verify(parsedOutageProcessor).resolveAddresses(parsedOutage);
         inOrder.verify(duplicateResolver).resolve(parsedOutage, canonical);
-        verifyNoInteractions(candidateFinder, matchingEngine);
+        verifyNoInteractions(candidateFinder, matchingEngine, notificationMessageFactory, notificationPort);
         verifyNoMoreInteractions(parsedOutageProcessor, duplicateResolver);
     }
 
     @Test
     void processRequiresNonNullParsedOutage() {
         assertThrows(NullPointerException.class, () -> service.process(null));
-        verifyNoInteractions(parsedOutageProcessor, duplicateResolver, candidateFinder, matchingEngine);
+        verifyNoInteractions(parsedOutageProcessor, duplicateResolver, candidateFinder,
+                matchingEngine, notificationMessageFactory, notificationPort);
     }
 
     @Test
