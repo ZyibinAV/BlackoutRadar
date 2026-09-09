@@ -541,6 +541,45 @@ Notification Domain Model.
 
 ---
 
+## NotificationChannel
+
+`NotificationChannel` представляет пользовательский способ
+получения уведомлений.
+
+Связь:
+
+User
+│
+│ 1:N
+▼
+NotificationChannel
+
+NotificationChannel содержит:
+
+- id;
+- user;
+- type;
+- destination;
+- enabled.
+
+`type` является расширяемым идентификатором и не фиксируется
+в Domain Model перечислением конкретных каналов.
+
+Один пользователь может иметь несколько каналов,
+в том числе несколько каналов одного типа.
+
+`NotificationChannel` является пользовательской настройкой
+и не является частью `Notification`.
+
+Notification не содержит channel,
+destination или channel-specific delivery state.
+
+Основное архитектурное решение:
+
+ADR-011 — Notification Channels and Extensible Delivery.
+
+---
+
 # Security Boundary
 
 Security concepts

@@ -123,6 +123,9 @@ public class DuplicateResolver {
     }
 
     private boolean isSameData(PowerOutage existing, ParsedOutage parsedOutage, List<Address> canonicalAddresses) {
+        if (!existing.startTime().equals(parsedOutage.startTime())) {
+            return false;
+        }
         if (!existing.endTime().equals(parsedOutage.endTime())) {
             return false;
         }

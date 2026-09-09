@@ -319,7 +319,7 @@ PROCESSING не определяет:
 в обработку Engine:
 
 1. определяет канал;
-2. подготавливает сообщение;
+2. передаёт готовое сообщение выбранному Delivery Adapter
 3. передаёт сообщение Adapter;
 4. получает результат обработки;
 5. устанавливает итоговое состояние.
@@ -499,16 +499,10 @@ Notification Engine
 
 ## Поддерживаемые каналы
 
-На первом этапе проекта:
-
-- Email.
-
-На последующих этапах:
-
-- Telegram.
-
-Архитектура допускает
-добавление новых каналов.
+- расширяемые типы NotificationChannel;
+- конкретные каналы доставки как инфраструктурные реализации;
+- Email как первый конкретный Delivery Adapter;
+- Telegram как возможный последующий канал.
 
 ---
 
@@ -581,11 +575,13 @@ Engine определяет
 
 ---
 
-## Этап 4 — Подготовка сообщения
+## Этап 4 — Передача готового сообщения
 
-Engine подготавливает
-сообщение для выбранного
-канала доставки.
+Engine использует message,
+уже содержащийся в Notification.
+
+Engine не формирует
+и не изменяет текст Notification.
 
 Подготовка может учитывать
 особенности конкретного Adapter.
@@ -864,10 +860,18 @@ Notification Engine
 - Notification lifecycle;
 - Notification status;
 - Adapter boundary;
-- Email channel;
+- модель NotificationChannel;
+- возможность Email channel;
+- возможность Telegram channel;
 - будущий Telegram channel;
 - Retry responsibility;
-- Delivery Attempt responsibility.
+- Delivery Attempt responsibility
+- NotificationChannel;
+- пользовательские настройки каналов;
+- несколько каналов одного пользователя;
+- расширяемый тип канала;
+- Channel Registry;
+- Application-level Delivery Port.
 
 Не определены
 и не фиксируются:
@@ -907,6 +911,7 @@ Notification Engine
 
 - [ADR-003 — Outage Processing Pipeline](adr/ADR-003-Outage-Processing-Pipeline.md)
 - [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
+- [ADR-011 — Notification Channels and Extensible Delivery](adr/ADR-011-Notification-Channels-and-Extensible-Delivery.md)
 
 ## Диаграммы
 

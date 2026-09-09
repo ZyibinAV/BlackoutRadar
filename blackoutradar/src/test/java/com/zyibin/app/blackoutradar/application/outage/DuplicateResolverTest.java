@@ -232,4 +232,17 @@ class DuplicateResolverTest {
         verify(powerOutagePort, never()).save(any());
         verify(powerOutagePort, never()).tryCreateWithExternalReference(any(), any());
     }
+
+    @Test
+    void startTimeChangeWithExternalReferenceTriggersUpdate() {
+        Instant newStart = start.plusSeconds(1800);
+        PowerOutage existing = PowerOutage.of(UUID.randomUUID(), sourceA, start, start.plusSeconds(3600), "r", "АКТИВНО", List.of(com.zyibin.app.blackoutradar.domain.outage.PowerOutageAddress.unboundOf(UUID.randomUUID(), address1)));
+        when(powerOutagePort.findBySourceAndExternalReference(sourceA.id(), "ext-123")).thenReturn(Optional.of(existing));
+        when(powerOutagePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        ParsedOutage po = new ParsedOutage(sourceA.id(), newStart, start.plusSeconds(3600), "r", "ext-123", List.of(new AddressInput("Тестовая область", null, null, "Тестовск", null, "ул Тестовая", "15")));
+        var result = resolver.resolve(po, List.of(address1));
+        assertEquals(DuplicateResolver.Decision.UPDATE, result.decision());
+        assertEquals(newStart, result.powerOutage().startTime());
+        verify(powerOutagePort).save(any());
+    }
 }

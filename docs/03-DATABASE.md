@@ -265,6 +265,83 @@ CASCADE
 
 ---
 
+# NotificationChannel
+
+## Таблица notification_channel
+
+### Назначение
+
+Хранит пользовательские
+каналы уведомлений.
+
+Один User может иметь
+несколько NotificationChannel,
+в том числе несколько каналов
+одного типа.
+
+`NotificationChannel`
+представляет пользовательскую
+настройку канала и не является
+частью Notification.
+
+### Поля
+
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| user_id | UUID | NO | FK |
+| type | VARCHAR | NO | |
+| destination | VARCHAR | NO | |
+| enabled | BOOLEAN | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
+
+### Ограничения
+
+UNIQUE(
+user_id,
+type,
+destination
+)
+
+Один пользователь не может
+иметь два одинаковых канала
+с одинаковым типом и
+одинаковым destination.
+
+`type` является расширяемым
+идентификатором и не ограничивается
+перечислением конкретных каналов
+на уровне Database Model.
+
+### Индексы
+
+- PK(id);
+- UNIQUE(user_id, type, destination);
+- INDEX(user_id).
+
+### Связи
+
+user
+
+↓
+
+notification_channel (1:N)
+
+notification_channel
+
+↓
+
+user (N:1)
+
+### ON DELETE
+
+user → notification_channel:
+
+CASCADE
+
+---
+
 # Address Catalog
 
 Address Catalog хранит

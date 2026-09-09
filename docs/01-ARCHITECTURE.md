@@ -497,6 +497,20 @@ Notification:
 - SENT;
 - FAILED.
 
+User
+↓
+NotificationChannel
+
+Notification
+↓
+Notification Engine
+↓
+Delivery Port
+↓
+Channel Registry
+↓
+Delivery Adapter
+
 Подробнее:
 
 [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
@@ -1139,6 +1153,8 @@ Integration tests
 [ADR-006 — Matching Engine](adr/ADR-006-Matching-Engine.md)
 
 [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
+
+[ADR-011 — Notification Channels and Extensible Delivery](adr/ADR-011-Notification-Channels-and-Extensible-Delivery.md)
 
 [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
 
