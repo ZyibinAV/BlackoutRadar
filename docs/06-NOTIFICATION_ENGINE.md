@@ -852,6 +852,20 @@ Notification Engine
 
 # Текущий scope
 
+## Реализованные Delivery Adapter
+
+На текущем этапе реализован:
+
+- Email Delivery Adapter.
+
+Email является первой конкретной
+Infrastructure implementation Delivery Adapter.
+
+Реализация не изменяет
+Notification Domain Model
+и не изменяет Application-level
+Delivery contract.
+
 В текущем состоянии
 архитектуры определены:
 
@@ -882,7 +896,7 @@ Notification Engine
 - scheduler retry implementation;
 - backoff algorithm;
 - dead-letter mechanism;
-- конкретные adapter implementations.
+- дополнительные Delivery Adapter, кроме уже реализованного Email Adapter.
 
 Эти вопросы относятся
 к последующим TASK.
