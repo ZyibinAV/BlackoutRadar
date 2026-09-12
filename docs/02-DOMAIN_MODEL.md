@@ -535,9 +535,11 @@ PROCESSING
 
 FAILED
 
-Retry и Delivery Attempt
-не являются частью текущей
-Notification Domain Model.
+Retry state и DeliveryAttempt не являются частью
+Domain Model сущности Notification.
+
+NotificationDelivery и DeliveryAttempt являются
+отдельными Domain Models подсистемы уведомлений.
 
 ---
 
@@ -577,6 +579,123 @@ destination или channel-specific delivery state.
 Основное архитектурное решение:
 
 ADR-011 — Notification Channels and Extensible Delivery.
+
+---
+
+## NotificationDelivery
+
+`NotificationDelivery` представляет конкретную единицу доставки Notification через конкретный `NotificationChannel`.
+
+Связь:
+
+```text
+Notification
+    │
+    │ 1:N
+    ▼
+NotificationDelivery
+    │
+    │ N:1
+    ▼
+NotificationChannel
+```
+
+`NotificationDelivery` содержит:
+
+* `id`;
+* `Notification`;
+* `NotificationChannel`;
+* `DeliveryStatus`;
+* `nextAttemptAt`.
+
+Допустимые состояния:
+
+```text
+READY
+PROCESSING
+SENT
+FAILED
+```
+
+`NotificationDelivery` является текущим состоянием конкретной доставки.
+
+Retry state относится к `NotificationDelivery`, а не к `Notification`.
+
+`NotificationDelivery` не содержит:
+
+* ownership token;
+* destination отдельно от `NotificationChannel`;
+* полный текст сообщения;
+* технические сведения PostgreSQL.
+
+Ownership token является persistence-specific механизмом и не входит в Domain Model.
+
+## DeliveryAttempt
+
+`DeliveryAttempt` представляет одну фактически выполненную попытку доставки.
+
+Содержит:
+
+* `id`;
+* `NotificationDelivery`;
+* `attemptNumber`;
+* `startedAt`;
+* `completedAt`;
+* `DeliveryAttemptResult`;
+* `errorCode`.
+
+`DeliveryAttempt` является историей и не владеет текущим Retry state.
+
+`nextAttemptAt` не является полем `DeliveryAttempt`.
+
+## DeliveryAttemptResult
+
+Допустимые результаты:
+
+```text
+SUCCESS
+TEMPORARY_FAILURE
+PERMANENT_FAILURE
+```
+
+`SUCCESS` означает успешное завершение попытки.
+
+`TEMPORARY_FAILURE` допускает принятие Retry Decision.
+
+`PERMANENT_FAILURE` означает, что автоматический Retry для этой попытки не выполняется.
+
+Конкретная классификация технических ошибок выполняется Delivery Adapter.
+
+## Domain Boundary
+
+`Notification` сохраняет собственный lifecycle:
+
+```text
+PENDING
+    ↓
+PROCESSING
+    ↓
+SENT
+```
+
+или:
+
+```text
+PROCESSING
+    ↓
+FAILED
+```
+
+`Notification` не получает:
+
+* Retry count;
+* nextAttemptAt;
+* DeliveryAttempt;
+* NotificationChannel;
+* ownership token.
+
+Retry является частью Notification Processing, но не новым бизнес-состоянием Notification.
+
 
 ---
 
@@ -666,6 +785,9 @@ Domain Entities:
 - [ADR-006 — Matching Engine](adr/ADR-006-Matching-Engine.md)
 - [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
 - [ADR-009 — RefreshToken Security Boundary](adr/ADR-009-RefreshToken-Security-Boundary.md)
+- ADR-011 — Notification Channels and Extensible Delivery
+- ADR-012 — Retry and Delivery Attempt Processing
+- ADR-013 — Retry Policy, Fencing and Recovery
 
 ---
 

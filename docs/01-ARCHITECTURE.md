@@ -1149,6 +1149,129 @@ Integration tests
 
 ---
 
+# Retry Architecture
+
+Retry является частью Notification Processing, но не является частью Business Domain Model `Notification`.
+
+Текущая архитектура доставки:
+
+```text
+Application / Processing Flow
+        ↓
+Notification
+        ↓
+Notification Engine
+        ↓
+NotificationDelivery
+        ↓
+Retry Processing
+        ↓
+Delivery Attempt
+        ↓
+Delivery Port
+        ↓
+Channel Registry
+        ↓
+Delivery Adapter
+        ↓
+External Delivery Provider
+```
+
+`NotificationDelivery` представляет конкретную единицу доставки:
+
+```text
+Notification + NotificationChannel
+```
+
+`DeliveryAttempt` хранит историю фактических попыток.
+
+Текущее Retry state хранится в `NotificationDelivery`.
+
+`nextAttemptAt` принадлежит `NotificationDelivery`.
+
+Retry Policy является отдельным Application-компонентом:
+
+```text
+DeliveryAttemptResult
+        ↓
+RetryPolicy
+        ↓
+RetryDecision
+```
+
+Retry Scheduler является Infrastructure-механизмом запуска готовых Retry и не содержит бизнес-правил Retry.
+
+Recovery Scheduler является отдельным Infrastructure-механизмом обнаружения и восстановления зависших `NotificationDelivery`.
+
+## Concurrent Retry Processing
+
+Конкурентный Retry защищается атомарным PostgreSQL claim.
+
+```text
+READY
+  ↓
+atomic claim + ownership token
+  ↓
+PROCESSING
+```
+
+Ownership token является техническим persistence/application mechanism и не входит в Domain Model.
+
+Финальное изменение состояния выполняется только владельцем token.
+
+Это обеспечивает fencing против устаревшего обработчика после recovery или нового claim.
+
+## Recovery
+
+Recovery зависшей `NotificationDelivery` выполняется без изменения `DeliveryAttempt`.
+
+```text
+PROCESSING
+  ↓
+recovery
+  ↓
+READY
+```
+
+Следующая попытка создаёт новую `DeliveryAttempt`.
+
+## At-Least-Once Delivery
+
+Внешняя доставка имеет at-least-once semantics.
+
+Fencing защищает состояние приложения от устаревшего обработчика, но не гарантирует отсутствие дублей, если внешний Delivery Provider принял сообщение до аварийного завершения приложения.
+
+## Boundary Rules
+
+Domain Model не знает о:
+
+* Retry Scheduler;
+* Recovery Scheduler;
+* ownership token;
+* PostgreSQL claim;
+* JPA;
+* конкретных Delivery Adapter;
+* backoff implementation.
+
+Application отвечает за:
+
+* Retry Policy;
+* Retry Processing;
+* координацию DeliveryAttempt;
+* принятие Retry Decision.
+
+Infrastructure отвечает за:
+
+* Scheduler;
+* Persistence;
+* atomic claim;
+* ownership fencing;
+* recovery;
+* Delivery Adapter.
+
+
+---
+
 # Связанные документы
 
 [00-VISION](00-VISION.md)
@@ -1170,6 +1293,10 @@ Integration tests
 [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
 
 [ADR-011 — Notification Channels and Extensible Delivery](adr/ADR-011-Notification-Channels-and-Extensible-Delivery.md)
+
+[ADR-012 — Retry and Delivery Attempt Processing](adr/ADR-012-Retry-and-Delivery-Attempt-Processing.md)
+
+[ADR-013 — Retry Policy, Fencing and Recovery](adr/ADR-013-Retry-Policy-Fencing-and-Recovery.md)
 
 [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
 

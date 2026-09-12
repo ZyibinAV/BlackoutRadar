@@ -447,6 +447,29 @@ API должен возвращать
 внутри server-side diagnostics
 и logging policy.
 
+## Notification Delivery Logging
+
+Notification Delivery и Retry Processing не должны раскрывать пользовательские данные или секреты через журналы.
+
+В логах Retry Processing и Scheduler не должны передаваться:
+
+* полный `Throwable`;
+* полный текст исключения;
+* destination;
+* полный текст Notification;
+* SMTP credentials;
+* access tokens;
+* refresh tokens.
+
+Для диагностики используются:
+
+* идентификатор `NotificationDelivery`;
+* безопасный технический код ошибки;
+* класс технического исключения без его сообщения, если это необходимо.
+
+`NotificationDelivery.toString()` и `DeliveryAttempt.toString()` не должны раскрывать связанные объекты, которые могут содержать destination или полный текст Notification.
+
+
 ---
 
 # Security Architecture Rules

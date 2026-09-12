@@ -1273,3 +1273,168 @@ Retry Policy,
 планирование повторных попыток
 и история попыток доставки
 относятся к Notification Engine.
+
+---
+
+# Notification Delivery
+
+## Таблица notification_delivery
+
+### Назначение
+
+Хранит текущее состояние доставки конкретного `Notification` через конкретный `NotificationChannel`.
+
+Одна Notification может иметь несколько `NotificationDelivery`.
+
+Каждая `NotificationDelivery` однозначно определяется связью:
+
+```text
+notification_id + notification_channel_id
+```
+
+### Поля
+
+| Поле                    | Тип                      | NULL | Назначение                         |
+| ----------------------- | ------------------------ | ---- | ---------------------------------- |
+| id                      | UUID                     | NO   | PK                                 |
+| notification_id         | UUID                     | NO   | FK → notification                  |
+| notification_channel_id | UUID                     | NO   | FK → notification_channel          |
+| status                  | VARCHAR                  | NO   | READY / PROCESSING / SENT / FAILED |
+| next_attempt_at         | TIMESTAMP WITH TIME ZONE | YES  | время следующей попытки            |
+| processing_token        | UUID                     | YES  | технический ownership token        |
+| created_at              | TIMESTAMP WITH TIME ZONE | NO   | время создания                     |
+| updated_at              | TIMESTAMP WITH TIME ZONE | NO   | время изменения                    |
+
+### Ограничения
+
+```text
+PRIMARY KEY(id)
+
+UNIQUE(
+    notification_id,
+    notification_channel_id
+)
+```
+
+`processing_token` является техническим полем конкурентной обработки.
+
+Он не является частью Domain Model.
+
+### Индексы
+
+```text
+PK(id)
+
+UNIQUE(notification_id, notification_channel_id)
+
+INDEX(notification_id)
+
+INDEX(status, next_attempt_at)
+```
+
+### Связи
+
+```text
+notification
+    ↓
+notification_delivery
+    ↓
+notification_channel
+```
+
+### ON DELETE
+
+Используются ограничения, предотвращающие удаление связанных записей, пока существует NotificationDelivery.
+
+---
+
+# Delivery Attempt
+
+## Таблица delivery_attempt
+
+### Назначение
+
+Хранит исторические записи фактически выполненных попыток доставки.
+
+### Поля
+
+| Поле                     | Тип                      | NULL | Назначение                 |
+| ------------------------ | ------------------------ | ---- | -------------------------- |
+| id                       | UUID                     | NO   | PK                         |
+| notification_delivery_id | UUID                     | NO   | FK                         |
+| attempt_number           | INTEGER                  | NO   | номер попытки              |
+| started_at               | TIMESTAMP WITH TIME ZONE | NO   | начало                     |
+| completed_at             | TIMESTAMP WITH TIME ZONE | YES  | завершение                 |
+| result                   | VARCHAR                  | YES  | результат попытки          |
+| error_code               | VARCHAR                  | YES  | безопасный технический код |
+
+### Ограничения
+
+```text
+PRIMARY KEY(id)
+
+UNIQUE(
+    notification_delivery_id,
+    attempt_number
+)
+```
+
+`attempt_number` нумеруется независимо для каждой `NotificationDelivery`.
+
+### Индексы
+
+Основной поиск истории выполняется по:
+
+```text
+notification_delivery_id
+```
+
+с сортировкой по:
+
+```text
+attempt_number
+```
+
+### Безопасность
+
+`delivery_attempt` не хранит:
+
+* destination;
+* полный текст Notification;
+* SMTP credentials;
+* access tokens;
+* refresh tokens;
+* полную строку исключения.
+
+`error_code` должен быть безопасным техническим идентификатором.
+
+---
+
+# Retry Processing
+
+Для поиска готовых Retry используется:
+
+```text
+status = READY
+AND (
+    next_attempt_at IS NULL
+    OR next_attempt_at <= current time
+)
+```
+
+Для обнаружения зависшей доставки используется:
+
+```text
+status = PROCESSING
+```
+
+с проверкой незавершённой `DeliveryAttempt`.
+PROCESSING
+AND
+EXISTS incomplete attempt started before threshold
+AND
+NOT EXISTS incomplete attempt started at or after threshold
+
+Recovery не удаляет и не изменяет историческую `DeliveryAttempt`.
+
+Изменения схемы выполняются только через Liquibase.

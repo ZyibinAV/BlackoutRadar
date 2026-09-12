@@ -926,6 +926,17 @@ Engine:
 не определяется
 на уровне данного ADR.
 
+Retry Processing реализуется после создания Notification.
+
+Retry выполняется на уровне NotificationDelivery.
+
+Notification lifecycle не изменяется.
+
+NotificationDelivery и DeliveryAttempt не являются состояниями Notification.
+
+Конкретная реализация Retry Processing определяется ADR-012
+и ADR-013.
+
 ---
 
 # Влияние на Matching Engine

@@ -773,6 +773,8 @@ Domain не зависит от инфраструктурных техноло�
 * ADR-003 — Outage Processing Pipeline
 * ADR-006 — Matching Engine
 * ADR-007 — Replaceable Infrastructure
+* ADR-012 — Retry and Delivery Attempt Processing
+* ADR-013 — Retry Policy, Ownership Fencing and Recovery
 * 01-ARCHITECTURE
 * 02-DOMAIN_MODEL
 * 03-DATABASE
