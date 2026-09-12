@@ -70,6 +70,7 @@ public class NotificationDeliveryPersistenceAdapter
     @Override
     @Transactional(readOnly = true)
     public List<NotificationDelivery> findReadyForProcessing(Instant now, int limit) {
+        Objects.requireNonNull(now, "now must not be null");
         if (limit < 1) {
             throw new IllegalArgumentException("limit must be at least 1");
         }
@@ -81,6 +82,7 @@ public class NotificationDeliveryPersistenceAdapter
     @Override
     @Transactional(readOnly = true)
     public List<NotificationDelivery> findStuckDeliveries(Instant stuckBefore, int limit) {
+        Objects.requireNonNull(stuckBefore, "stuckBefore must not be null");
         if (limit < 1) {
             throw new IllegalArgumentException("limit must be at least 1");
         }
@@ -94,19 +96,14 @@ public class NotificationDeliveryPersistenceAdapter
     public NotificationDelivery save(NotificationDelivery delivery) {
         Objects.requireNonNull(delivery, "delivery must not be null");
         UUID id = delivery.id();
-        Optional<NotificationDeliveryEntity> existing = repository.findById(id);
+        if (repository.existsById(id)) {
+            throw new IllegalStateException(
+                    "Existing notification delivery must be changed only through fencing API: " + id);
+        }
         NotificationDeliveryEntity entity = mapper.toEntity(delivery);
         entity.setNotification(notificationRepository.getReferenceById(delivery.notification().id()));
         entity.setNotificationChannel(channelRepository.getReferenceById(delivery.notificationChannel().id()));
-        if (existing.isPresent()) {
-            if (delivery.status() == DeliveryStatus.PROCESSING) {
-                entity.setProcessingToken(existing.get().getProcessingToken());
-            } else {
-                entity.setProcessingToken(null);
-            }
-        } else {
-            entity.setProcessingToken(null);
-        }
+        entity.setProcessingToken(null);
         NotificationDeliveryEntity saved = repository.save(entity);
         repository.flush();
         return toDomain(saved);

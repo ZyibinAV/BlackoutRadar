@@ -106,6 +106,18 @@ class NotificationDeliveryPersistenceTest {
     }
 
     @Test
+    void saveExistingDeliveryIsRejected() {
+        Fixture fixture = saveFixture();
+        NotificationDelivery delivery = NotificationDelivery.of(UUID.randomUUID(),
+                fixture.notification(), fixture.channel());
+        deliveryPort.save(delivery);
+
+        assertThrows(IllegalStateException.class, () -> deliveryPort.save(delivery));
+        assertEquals(DeliveryStatus.READY,
+                deliveryPort.findById(delivery.id()).orElseThrow().status());
+    }
+
+    @Test
     void allStatusesAndNextAttemptAtPersisted() {
         Fixture fixture = saveFixture();
         Instant nextAttemptAt = Instant.now().plus(5, ChronoUnit.MINUTES);
@@ -214,6 +226,11 @@ class NotificationDeliveryPersistenceTest {
 
         assertThrows(IllegalArgumentException.class, () -> deliveryPort.findReadyForProcessing(now, 0));
         assertThrows(IllegalArgumentException.class, () -> deliveryPort.findReadyForProcessing(now, -1));
+    }
+
+    @Test
+    void findReadyForProcessingRejectsNullNow() {
+        assertThrows(NullPointerException.class, () -> deliveryPort.findReadyForProcessing(null, 10));
     }
 
     private NotificationDelivery saveDelivery(Fixture fixture, DeliveryStatus status, Instant nextAttemptAt) {

@@ -6,6 +6,7 @@ import com.zyibin.app.blackoutradar.domain.notification.NotificationChannel;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationDelivery;
 import com.zyibin.app.blackoutradar.domain.notification.port.DeliveryAttemptPort;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationDeliveryPort;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -13,6 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,17 +27,30 @@ public class RetryProcessingService {
     private final DeliveryAttemptPort attemptPort;
     private final DeliveryChannelRegistry channelRegistry;
     private final RetryPolicy retryPolicy;
+    private final Clock clock;
 
+    @Autowired
     public RetryProcessingService(NotificationDeliveryPort deliveryPort,
                                   NotificationDeliveryFencingPort fencingPort,
                                   DeliveryAttemptPort attemptPort,
                                   DeliveryChannelRegistry channelRegistry,
                                   RetryPolicy retryPolicy) {
+        this(deliveryPort, fencingPort, attemptPort, channelRegistry, retryPolicy,
+                Clock.systemUTC());
+    }
+
+    public RetryProcessingService(NotificationDeliveryPort deliveryPort,
+                                  NotificationDeliveryFencingPort fencingPort,
+                                  DeliveryAttemptPort attemptPort,
+                                  DeliveryChannelRegistry channelRegistry,
+                                  RetryPolicy retryPolicy,
+                                  Clock clock) {
         this.deliveryPort = Objects.requireNonNull(deliveryPort, "deliveryPort must not be null");
         this.fencingPort = Objects.requireNonNull(fencingPort, "fencingPort must not be null");
         this.attemptPort = Objects.requireNonNull(attemptPort, "attemptPort must not be null");
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry must not be null");
         this.retryPolicy = Objects.requireNonNull(retryPolicy, "retryPolicy must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public NotificationDelivery process(UUID deliveryId, Instant now) {
@@ -54,7 +69,7 @@ public class RetryProcessingService {
                 DeliveryAttempt.started(UUID.randomUUID(), processing, attemptNumber, now));
         DeliveryAttemptResult attemptResult = executeDelivery(processing);
         DeliveryAttempt completed = attemptPort.save(
-                started.complete(Instant.now(), attemptResult, null));
+                started.complete(Instant.now(clock), attemptResult, null));
         NotificationDelivery result = applyResult(processing, completed, now);
         Optional<NotificationDelivery> saved = fencingPort.saveIfOwned(processing.id(), ownershipToken, result);
         if (saved.isPresent()) {

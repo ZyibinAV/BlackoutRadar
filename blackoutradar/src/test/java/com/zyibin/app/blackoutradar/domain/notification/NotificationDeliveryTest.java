@@ -1,6 +1,7 @@
 package com.zyibin.app.blackoutradar.domain.notification;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -172,6 +173,22 @@ class NotificationDeliveryTest {
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
         assertNotEquals(a, NotificationDelivery.of(UUID.randomUUID(), notification, channel));
+    }
+
+    @Test
+    void toStringContainsOnlyTechnicalFields() {
+        UUID id = UUID.randomUUID();
+        NotificationDelivery delivery = NotificationDelivery.of(id, notification(),
+                channel(user(), "email", "personal-s3cret@example.com")).startProcessing();
+
+        String text = delivery.toString();
+
+        assertTrue(text.contains(id.toString()));
+        assertTrue(text.contains("PROCESSING"));
+        assertFalse(text.contains("personal-s3cret@example.com"));
+        assertFalse(text.contains("message"));
+        assertFalse(text.contains("notification="));
+        assertFalse(text.contains("notificationChannel="));
     }
 
     @Test

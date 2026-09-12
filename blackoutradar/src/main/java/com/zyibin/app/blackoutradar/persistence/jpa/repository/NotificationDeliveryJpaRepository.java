@@ -16,10 +16,6 @@ public interface NotificationDeliveryJpaRepository extends JpaRepository<Notific
     List<NotificationDeliveryEntity> findByNotificationId(UUID notificationId);
 
     @Modifying(clearAutomatically = true)
-    @Query("UPDATE NotificationDeliveryEntity d SET d.status = com.zyibin.app.blackoutradar.domain.notification.DeliveryStatus.PROCESSING, d.updatedAt = CURRENT_TIMESTAMP WHERE d.id = :id AND d.status = com.zyibin.app.blackoutradar.domain.notification.DeliveryStatus.READY AND (d.nextAttemptAt IS NULL OR d.nextAttemptAt <= :now)")
-    int claimReadyAsProcessing(@Param("id") UUID id, @Param("now") Instant now);
-
-    @Modifying(clearAutomatically = true)
     @Query("UPDATE NotificationDeliveryEntity d SET d.status = com.zyibin.app.blackoutradar.domain.notification.DeliveryStatus.PROCESSING, d.processingToken = :token, d.updatedAt = CURRENT_TIMESTAMP WHERE d.id = :id AND d.status = com.zyibin.app.blackoutradar.domain.notification.DeliveryStatus.READY AND (d.nextAttemptAt IS NULL OR d.nextAttemptAt <= :now)")
     int claimReadyAsProcessingWithToken(@Param("id") UUID id, @Param("now") Instant now,
                                         @Param("token") UUID token);

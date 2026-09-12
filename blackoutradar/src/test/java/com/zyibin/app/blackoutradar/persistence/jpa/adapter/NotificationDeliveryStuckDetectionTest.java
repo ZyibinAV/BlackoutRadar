@@ -303,6 +303,11 @@ class NotificationDeliveryStuckDetectionTest {
         assertThrows(IllegalArgumentException.class, () -> deliveryPort.findStuckDeliveries(now, -1));
     }
 
+    @Test
+    void searchRejectsNullThreshold() {
+        assertThrows(NullPointerException.class, () -> deliveryPort.findStuckDeliveries(null, 10));
+    }
+
     private NotificationDelivery saveDelivery(DeliveryStatus status) {
         User user = userPort.save(User.of(UUID.randomUUID(),
                 "stuck-" + UUID.randomUUID() + "@example.com", UserRole.USER, true));

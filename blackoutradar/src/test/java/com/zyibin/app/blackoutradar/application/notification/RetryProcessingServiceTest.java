@@ -39,7 +39,9 @@ import com.zyibin.app.blackoutradar.domain.outage.PowerOutage;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutageAddress;
 import com.zyibin.app.blackoutradar.domain.outage.Source;
 import com.zyibin.app.blackoutradar.domain.subscription.Subscription;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -208,6 +210,34 @@ class RetryProcessingServiceTest {
 
         assertEquals(DeliveryStatus.SENT, result.status());
         verifyNoInteractions(retryPolicy);
+    }
+
+    @Test
+    void completionTimeComesFromClockWhilePolicyUsesProcessingNow() {
+        Instant completedAt = NOW.plusSeconds(30);
+        RetryProcessingService clockedService = new RetryProcessingService(deliveryPort, fencingPort,
+                attemptPort, new DeliveryChannelRegistry(List.of(emailAdapter)), retryPolicy,
+                Clock.fixed(completedAt, ZoneOffset.UTC));
+        stubClaimSuccess();
+        when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
+
+        clockedService.process(delivery.id(), NOW);
+
+        ArgumentCaptor<DeliveryAttempt> captor = ArgumentCaptor.forClass(DeliveryAttempt.class);
+        verify(attemptPort, times(2)).save(captor.capture());
+        DeliveryAttempt started = captor.getAllValues().get(0);
+        DeliveryAttempt completed = captor.getAllValues().get(1);
+        assertEquals(NOW, started.startedAt());
+        assertEquals(completedAt, completed.completedAt());
+        assertTrue(!completed.completedAt().isBefore(started.startedAt()));
+        verifyNoInteractions(retryPolicy);
+    }
+
+    @Test
+    void nullClockRejected() {
+        assertThrows(NullPointerException.class, () -> new RetryProcessingService(deliveryPort,
+                fencingPort, attemptPort, new DeliveryChannelRegistry(List.of(emailAdapter)),
+                retryPolicy, null));
     }
 
     @Test

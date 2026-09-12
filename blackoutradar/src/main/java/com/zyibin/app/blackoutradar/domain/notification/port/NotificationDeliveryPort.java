@@ -12,6 +12,14 @@ public interface NotificationDeliveryPort {
 
     List<NotificationDelivery> findByNotificationId(UUID notificationId);
 
+    /**
+     * Creates a new delivery. State changes of an existing delivery during
+     * processing must go only through the fencing API
+     * ({@code NotificationDeliveryFencingPort}), never through this method,
+     * so a stale worker cannot overwrite a delivery it no longer owns.
+     *
+     * @throws IllegalStateException when a delivery with the same id already exists
+     */
     NotificationDelivery save(NotificationDelivery delivery);
 
     /**

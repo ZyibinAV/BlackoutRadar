@@ -50,14 +50,16 @@ public class RetryScheduler {
         try {
             due = deliveryPort.findReadyForProcessing(now, BATCH_SIZE);
         } catch (RuntimeException e) {
-            log.error("Failed to load due notification deliveries", e);
+            log.error("Failed to load due notification deliveries: {}",
+                    e.getClass().getSimpleName());
             return;
         }
         for (NotificationDelivery delivery : due) {
             try {
                 processingService.process(delivery.id(), now);
             } catch (RuntimeException e) {
-                log.warn("Failed to process notification delivery {}", delivery.id(), e);
+                log.warn("Failed to process notification delivery {}: {}",
+                        delivery.id(), e.getClass().getSimpleName());
             }
         }
     }

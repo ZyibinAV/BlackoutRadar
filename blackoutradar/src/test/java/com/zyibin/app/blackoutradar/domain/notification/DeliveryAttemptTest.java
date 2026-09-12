@@ -161,6 +161,25 @@ class DeliveryAttemptTest {
     }
 
     @Test
+    void toStringExposesNoDeliveryDetails() {
+        NotificationDelivery delivery = delivery();
+        UUID id = UUID.randomUUID();
+        DeliveryAttempt attempt = DeliveryAttempt.completed(id, delivery, 2,
+                NOW, NOW.plusSeconds(5), DeliveryAttemptResult.TEMPORARY_FAILURE, "SMTP_TIMEOUT");
+
+        String text = attempt.toString();
+
+        assertTrue(text.contains(id.toString()));
+        assertTrue(text.contains("attemptNumber=2"));
+        assertTrue(text.contains("TEMPORARY_FAILURE"));
+        assertTrue(text.contains("SMTP_TIMEOUT"));
+        assertFalse(text.contains(delivery.id().toString()));
+        assertFalse(text.contains("notificationDelivery="));
+        assertFalse(text.contains("123456789"));
+        assertFalse(text.contains("message"));
+    }
+
+    @Test
     void attemptHoldsNoRetryStateOrUserData() {
         Set<String> fields = Arrays.stream(DeliveryAttempt.class.getDeclaredFields())
                 .map(Field::getName)

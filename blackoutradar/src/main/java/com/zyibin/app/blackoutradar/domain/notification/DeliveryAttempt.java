@@ -114,7 +114,6 @@ public final class DeliveryAttempt {
     public String toString() {
         return "DeliveryAttempt{"
                 + "id=" + id
-                + ", notificationDelivery=" + notificationDelivery
                 + ", attemptNumber=" + attemptNumber
                 + ", startedAt=" + startedAt
                 + ", completedAt=" + completedAt

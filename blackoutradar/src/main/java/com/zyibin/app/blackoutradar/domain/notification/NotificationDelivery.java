@@ -109,8 +109,6 @@ public final class NotificationDelivery {
     public String toString() {
         return "NotificationDelivery{"
                 + "id=" + id
-                + ", notification=" + notification
-                + ", notificationChannel=" + notificationChannel
                 + ", status=" + status
                 + ", nextAttemptAt=" + nextAttemptAt
                 + '}';
