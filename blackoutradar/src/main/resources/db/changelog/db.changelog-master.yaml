@@ -19,3 +19,7 @@ databaseChangeLog:
       file: classpath:/db/changelog/009-power-outage-identity.sql
   - include:
       file: classpath:/db/changelog/010-notification-channel.sql
+  - include:
+      file: classpath:/db/changelog/011-delivery.sql
+  - include:
+      file: classpath:/db/changelog/012-delivery-ownership.sql

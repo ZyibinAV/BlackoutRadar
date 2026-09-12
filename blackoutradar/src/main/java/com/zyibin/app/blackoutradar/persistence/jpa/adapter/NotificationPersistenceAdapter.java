@@ -83,6 +83,16 @@ public class NotificationPersistenceAdapter implements NotificationPort {
         return toDomain(saved);
     }
 
+    @Override
+    @Transactional
+    public Optional<Notification> claimForProcessing(UUID id) {
+        int updated = repository.claimPendingAsProcessing(id);
+        if (updated == 0) {
+            return Optional.empty();
+        }
+        return repository.findById(id).map(this::toDomain);
+    }
+
     private Notification toDomain(NotificationEntity entity) {
         SubscriptionEntity subscriptionEntity = entity.getSubscription();
         PowerOutageEntity powerOutageEntity = entity.getPowerOutage();

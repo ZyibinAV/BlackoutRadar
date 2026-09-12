@@ -4,12 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertTrue;import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 import com.zyibin.app.blackoutradar.application.notification.DeliveryChannelRegistry;
+import com.zyibin.app.blackoutradar.application.notification.DeliveryOutcome;
 import com.zyibin.app.blackoutradar.application.notification.DeliveryResult;
 import com.zyibin.app.blackoutradar.domain.identity.User;
 import com.zyibin.app.blackoutradar.domain.identity.UserRole;
@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -75,11 +76,23 @@ class EmailDeliveryAdapterTest {
     }
 
     @Test
-    void sendFailureReturnsFailureResult() {
+    void sendFailureReturnsTemporaryFailureResult() {
         doThrow(new MailSendException("smtp down")).when(mailSender).send(any(SimpleMailMessage.class));
 
         DeliveryResult result = adapter.deliver(channel, "outage message");
 
+        assertEquals(DeliveryOutcome.TEMPORARY_FAILURE, result.outcome());
+        assertFalse(result.successful());
+        verify(mailSender).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void parseFailureReturnsPermanentFailureResult() {
+        doThrow(new MailParseException("bad address")).when(mailSender).send(any(SimpleMailMessage.class));
+
+        DeliveryResult result = adapter.deliver(channel, "outage message");
+
+        assertEquals(DeliveryOutcome.PERMANENT_FAILURE, result.outcome());
         assertFalse(result.successful());
         verify(mailSender).send(any(SimpleMailMessage.class));
     }
@@ -100,5 +113,29 @@ class EmailDeliveryAdapterTest {
 
         assertTrue(registry.find("email").isPresent());
         assertEquals(adapter, registry.find("email").get());
+    }
+
+    @Test
+    void failureLogContainsNoRecipientDestination() {
+        doThrow(new MailSendException("smtp down")).when(mailSender).send(any(SimpleMailMessage.class));
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EmailDeliveryAdapter.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            adapter.deliver(channel, "outage message");
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertFalse(appender.list.isEmpty());
+        for (ch.qos.logback.classic.spi.ILoggingEvent event : appender.list) {
+            assertFalse(event.getFormattedMessage().contains("personal@example.com"),
+                    "Log must not contain recipient destination: " + event.getFormattedMessage());
+        }
+        assertTrue(appender.list.stream()
+                .anyMatch(event -> event.getFormattedMessage().contains("email")));
     }
 }

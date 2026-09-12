@@ -116,8 +116,9 @@ class NotificationEngineTest {
         return NotificationChannel.of(UUID.randomUUID(), user, type, destination, enabled);
     }
 
-    private void stubPending() {
-        when(notificationPort.findById(pending.id())).thenReturn(Optional.of(pending));
+    private void stubSuccessfulClaim() {
+        when(notificationPort.claimForProcessing(pending.id()))
+                .thenReturn(Optional.of(pending.startProcessing()));
         when(notificationPort.save(any(Notification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -126,7 +127,7 @@ class NotificationEngineTest {
     void pendingAllChannelsSucceedBecomesSent() {
         NotificationChannel email = channel("email", "personal@example.com", true);
         NotificationChannel telegram = channel("telegram", "123456789", true);
-        stubPending();
+        stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, telegram));
 
         Notification result = engine.process(pending.id());
@@ -140,17 +141,18 @@ class NotificationEngineTest {
         assertEquals(MESSAGE, emailAdapter.calls.get(0).message());
         assertSame(telegram, telegramAdapter.calls.get(0).channel());
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationPort, times(2)).save(captor.capture());
-        assertEquals(NotificationStatus.PROCESSING, captor.getAllValues().get(0).status());
-        assertEquals(NotificationStatus.SENT, captor.getAllValues().get(1).status());
+        verify(notificationPort, times(1)).save(captor.capture());
+        assertEquals(NotificationStatus.SENT, captor.getValue().status());
+        verify(notificationPort).claimForProcessing(pending.id());
+        verify(notificationPort, never()).findById(any(UUID.class));
     }
 
     @Test
     void oneChannelFailureBecomesFailedButOthersProcessed() {
         NotificationChannel email = channel("email", "personal@example.com", true);
         NotificationChannel telegram = channel("telegram", "123456789", true);
-        telegramAdapter.result = DeliveryResult.failure();
-        stubPending();
+        telegramAdapter.result = DeliveryResult.temporaryFailure();
+        stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, telegram));
 
         Notification result = engine.process(pending.id());
@@ -163,7 +165,7 @@ class NotificationEngineTest {
 
     @Test
     void noEnabledChannelsBecomesFailedWithoutDelivery() {
-        stubPending();
+        stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(
                 channel("email", "personal@example.com", false),
                 channel("telegram", "123456789", false)));
@@ -177,7 +179,7 @@ class NotificationEngineTest {
 
     @Test
     void absentChannelsBecomesFailedWithoutDelivery() {
-        stubPending();
+        stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of());
 
         Notification result = engine.process(pending.id());
@@ -191,7 +193,7 @@ class NotificationEngineTest {
     void onlyEnabledChannelsAreProcessed() {
         NotificationChannel enabled = channel("email", "personal@example.com", true);
         NotificationChannel disabled = channel("telegram", "123456789", false);
-        stubPending();
+        stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(enabled, disabled));
 
         Notification result = engine.process(pending.id());
@@ -205,7 +207,7 @@ class NotificationEngineTest {
     void unknownChannelTypeFailsChannelButOthersContinue() {
         NotificationChannel email = channel("email", "personal@example.com", true);
         NotificationChannel sms = channel("sms", "+70000000000", true);
-        stubPending();
+        stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, sms));
 
         Notification result = engine.process(pending.id());
@@ -219,7 +221,7 @@ class NotificationEngineTest {
         NotificationChannel email = channel("email", "personal@example.com", true);
         NotificationChannel telegram = channel("telegram", "123456789", true);
         emailAdapter.failure = new RuntimeException("smtp down");
-        stubPending();
+        stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, telegram));
 
         Notification result = engine.process(pending.id());
@@ -230,8 +232,26 @@ class NotificationEngineTest {
     }
 
     @Test
+    void lostClaimSkipsDelivery() {
+        Notification processing = pending.startProcessing();
+        when(notificationPort.claimForProcessing(pending.id())).thenReturn(Optional.empty());
+        when(notificationPort.findById(pending.id())).thenReturn(Optional.of(processing));
+
+        Notification result = engine.process(pending.id());
+
+        assertSame(processing, result);
+        verify(notificationPort).claimForProcessing(pending.id());
+        verify(notificationPort).findById(pending.id());
+        verify(notificationPort, never()).save(any(Notification.class));
+        verifyNoInteractions(channelPort);
+        assertTrue(emailAdapter.calls.isEmpty());
+        assertTrue(telegramAdapter.calls.isEmpty());
+    }
+
+    @Test
     void processingIsNotReprocessed() {
         Notification processing = pending.startProcessing();
+        when(notificationPort.claimForProcessing(pending.id())).thenReturn(Optional.empty());
         when(notificationPort.findById(pending.id())).thenReturn(Optional.of(processing));
 
         Notification result = engine.process(pending.id());
@@ -246,6 +266,7 @@ class NotificationEngineTest {
     @Test
     void sentIsSkipped() {
         Notification sent = pending.startProcessing().markSent();
+        when(notificationPort.claimForProcessing(pending.id())).thenReturn(Optional.empty());
         when(notificationPort.findById(pending.id())).thenReturn(Optional.of(sent));
 
         Notification result = engine.process(pending.id());
@@ -258,11 +279,13 @@ class NotificationEngineTest {
     @Test
     void failedDoesNotRetry() {
         Notification failed = pending.startProcessing().markFailed();
+        when(notificationPort.claimForProcessing(pending.id())).thenReturn(Optional.empty());
         when(notificationPort.findById(pending.id())).thenReturn(Optional.of(failed));
 
         Notification result = engine.process(pending.id());
 
         assertSame(failed, result);
+        assertEquals(NotificationStatus.FAILED, result.status());
         verify(notificationPort, never()).save(any(Notification.class));
         verifyNoInteractions(channelPort);
         assertTrue(emailAdapter.calls.isEmpty());
@@ -272,6 +295,7 @@ class NotificationEngineTest {
     @Test
     void missingNotificationThrows() {
         UUID id = UUID.randomUUID();
+        when(notificationPort.claimForProcessing(id)).thenReturn(Optional.empty());
         when(notificationPort.findById(id)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class, () -> engine.process(id));

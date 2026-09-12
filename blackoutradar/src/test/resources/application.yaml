@@ -24,3 +24,8 @@ blackoutradar:
     email:
       from: ${MAIL_FROM:blackoutradar@localhost}
       subject: ${MAIL_SUBJECT:BlackoutRadar power outage notification}
+    retry:
+      poll-interval: ${RETRY_POLL_INTERVAL:30s}
+    recovery:
+      poll-interval: ${RECOVERY_POLL_INTERVAL:5m}
+      stuck-threshold: ${RECOVERY_STUCK_THRESHOLD:15m}

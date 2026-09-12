@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
+import org.springframework.mail.MailParseException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
@@ -41,9 +42,14 @@ public class EmailDeliveryAdapter implements DeliveryPort {
             mail.setText(message);
             mailSender.send(mail);
             return DeliveryResult.success();
+        } catch (MailParseException e) {
+            log.warn("Email delivery failed for channel type {}: {}", channel.type(),
+                    e.getClass().getSimpleName());
+            return DeliveryResult.permanentFailure();
         } catch (MailException e) {
-            log.warn("Email delivery failed for destination {}", channel.destination(), e);
-            return DeliveryResult.failure();
+            log.warn("Email delivery failed for channel type {}: {}", channel.type(),
+                    e.getClass().getSimpleName());
+            return DeliveryResult.temporaryFailure();
         }
     }
 }

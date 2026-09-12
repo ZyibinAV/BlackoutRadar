@@ -1,50 +1,10 @@
 @startuml
-title BlackoutRadar — Notification Pipeline
-
-skinparam linetype ortho
-
-start
-
-:Match;
-
-:Application / Processing Flow;
-
-:Create Notification;
-
-:Notification;
-note right
-Subscription + PowerOutage
-must be unique.
-
-Notification has no
-technical dependency on Match.
-end note
-
-:PENDING;
 
 :Notification Engine;
-
 :PROCESSING;
-
-:Determine delivery channel;
-
-:Prepare message;
-
+:Determine enabled delivery channels;
+:Resolve Delivery Adapter via Channel Registry;
+:Delivery Port;
 :Delivery Adapter;
-
-if (Delivery successful?) then (yes)
-    :SENT;
-else (no)
-    :FAILED;
-
-    if (Retry required?) then (yes)
-        :Retry Decision;
-        :PROCESSING;
-    else (no)
-        stop
-    endif
-endif
-
-stop
 
 @enduml

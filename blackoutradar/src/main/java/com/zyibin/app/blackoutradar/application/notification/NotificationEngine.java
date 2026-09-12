@@ -2,12 +2,12 @@ package com.zyibin.app.blackoutradar.application.notification;
 
 import com.zyibin.app.blackoutradar.domain.notification.Notification;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationChannel;
-import com.zyibin.app.blackoutradar.domain.notification.NotificationStatus;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationChannelPort;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationPort;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,12 +32,12 @@ public class NotificationEngine {
 
     public Notification process(UUID notificationId) {
         Objects.requireNonNull(notificationId, "notificationId must not be null");
-        Notification notification = notificationPort.findById(notificationId)
-                .orElseThrow(() -> new NoSuchElementException("Notification not found: " + notificationId));
-        if (notification.status() != NotificationStatus.PENDING) {
-            return notification;
+        Optional<Notification> claimed = notificationPort.claimForProcessing(notificationId);
+        if (claimed.isEmpty()) {
+            return notificationPort.findById(notificationId)
+                    .orElseThrow(() -> new NoSuchElementException("Notification not found: " + notificationId));
         }
-        Notification processing = notificationPort.save(notification.startProcessing());
+        Notification processing = claimed.get();
         List<NotificationChannel> channels = channelPort.findByUserId(processing.subscription().user().id())
                 .stream()
                 .filter(NotificationChannel::isEnabled)

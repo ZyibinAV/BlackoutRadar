@@ -182,7 +182,17 @@ Application Layer
                                  |
                                  v
                       +----------------------+
-                      | Delivery Adapter     |
+                      | Delivery Port     |
+                      +----------------------+
+                                 |
+                                 v
+                      +----------------------+
+                      | Channel Registry   |
+                      +----------------------+
+                                 |
+                                 v
+                      +----------------------+
+                      | Delivery Adapter   |
                       +----------------------+
 
 ---
@@ -529,13 +539,14 @@ Notification Engine:
 - принимает готовый Notification;
 - принимает Notification
   в обработку;
-- определяет канал;
-- подготавливает сообщение;
-- передает сообщение Adapter;
+- определяет включённые каналы;
+- выбирает Delivery Adapter
+  через Channel Registry;
+- передает готовое сообщение
+  выбранному Delivery Adapter;
 - получает результат;
 - обновляет состояние Notification;
-- принимает решение
-  о повторной обработке.
+- в будущем управляет Retry.
 
 Notification Engine
 не отвечает за:
@@ -696,6 +707,14 @@ Notification
 ↓
 
 Notification Engine
+
+↓
+
+Delivery Port
+
+↓
+
+Channel Registry
 
 ↓
 
@@ -1060,21 +1079,17 @@ Mapping выполняется
 # Notification Direction
 
 Application / Processing Flow
-
 ↓
-
 Notification
-
 ↓
-
 Notification Engine
-
 ↓
-
+Delivery Port
+↓
+Channel Registry
+↓
 Delivery Adapter
-
 ↓
-
 External Delivery Provider
 
 Notification Domain
