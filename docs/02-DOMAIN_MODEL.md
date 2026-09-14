@@ -226,6 +226,26 @@ Subscription
 
 Notification
 
+### Notification Delivery и финальное состояние
+
+`Notification` не содержит состояние конкретной доставки, Retry state или `processingToken`.
+
+Конкретная доставка представлена отдельным `NotificationDelivery`.
+
+Итоговое состояние `Notification` определяется Application / Processing Flow на основании актуального состояния всех связанных `NotificationDelivery`.
+
+Механизм конкурентной финализации через PostgreSQL не является частью Domain Model.
+
+Domain Model не знает о:
+
+* PostgreSQL row lock;
+* ownership token;
+* fencing;
+* Retry Scheduler;
+* Recovery Scheduler;
+* Delivery Adapter.
+
+
 ### Инварианты
 
 Subscription:
@@ -784,10 +804,12 @@ Domain Entities:
 - [ADR-005 — PowerOutage Event Model](adr/ADR-005-PowerOutage-Event-Model.md)
 - [ADR-006 — Matching Engine](adr/ADR-006-Matching-Engine.md)
 - [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
-- [ADR-009 — RefreshToken Security Boundary](adr/ADR-009-RefreshToken-Security-Boundary.md)
-- ADR-011 — Notification Channels and Extensible Delivery
-- ADR-012 — Retry and Delivery Attempt Processing
-- ADR-013 — Retry Policy, Fencing and Recovery
+- [ADR-009 — RefreshToken Security Boundary](<adr/ADR-009-RefreshToken Security Boundary.md>)
+- [ADR-011 — Notification Channels and Extensible Delivery](<adr/ADR-011-Notification Channels and Extensible Delivery.md>)
+- [ADR-012 — Retry and Delivery Attempt Processing](<adr/ADR-012-Retry and Delivery Attempt Processing.md>)
+- [ADR-013 — Retry Policy, Fencing and Recovery](<adr/ADR-013 — Retry Policy, Fencing and Recovery.md>)
+- [ADR-014 — Concurrent Notification Finalization](adr/ADR-014 — Concurrent Notification Finalization.md)
+
 
 ---
 

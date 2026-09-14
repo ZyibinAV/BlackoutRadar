@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -23,20 +24,26 @@ import com.zyibin.app.blackoutradar.domain.address.Street;
 import com.zyibin.app.blackoutradar.domain.address.StreetType;
 import com.zyibin.app.blackoutradar.domain.identity.User;
 import com.zyibin.app.blackoutradar.domain.identity.UserRole;
+import com.zyibin.app.blackoutradar.domain.notification.DeliveryStatus;
 import com.zyibin.app.blackoutradar.domain.notification.Notification;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationChannel;
+import com.zyibin.app.blackoutradar.domain.notification.NotificationDelivery;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationStatus;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationChannelPort;
+import com.zyibin.app.blackoutradar.domain.notification.port.NotificationDeliveryPort;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationPort;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutage;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutageAddress;
 import com.zyibin.app.blackoutradar.domain.outage.Source;
 import com.zyibin.app.blackoutradar.domain.subscription.Subscription;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Modifier;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,39 +55,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class NotificationEngineTest {
 
-    static class StubAdapter implements DeliveryPort {
-        private final String type;
-        private DeliveryResult result = DeliveryResult.success();
-        private RuntimeException failure;
-        private final List<DeliveredCall> calls = new ArrayList<>();
-
-        StubAdapter(String type) {
-            this.type = type;
-        }
-
-        @Override
-        public String channelType() {
-            return type;
-        }
-
-        @Override
-        public DeliveryResult deliver(NotificationChannel channel, String message) {
-            calls.add(new DeliveredCall(channel, message));
-            if (failure != null) {
-                throw failure;
-            }
-            return result;
-        }
-    }
-
-    record DeliveredCall(NotificationChannel channel, String message) {
-    }
-
     @Mock private NotificationPort notificationPort;
     @Mock private NotificationChannelPort channelPort;
+    @Mock private NotificationDeliveryPort deliveryPort;
+    @Mock private RetryProcessingService retryProcessingService;
+    @Mock private NotificationFinalizationService finalizationService;
 
-    private StubAdapter emailAdapter;
-    private StubAdapter telegramAdapter;
     private NotificationEngine engine;
 
     private User user;
@@ -93,10 +73,8 @@ class NotificationEngineTest {
 
     @BeforeEach
     void setUp() {
-        emailAdapter = new StubAdapter("email");
-        telegramAdapter = new StubAdapter("telegram");
-        engine = new NotificationEngine(notificationPort, channelPort,
-                new DeliveryChannelRegistry(List.of(emailAdapter, telegramAdapter)));
+        engine = new NotificationEngine(notificationPort, channelPort, deliveryPort,
+                retryProcessingService, finalizationService);
 
         user = User.of(UUID.randomUUID(), "user@example.com", UserRole.USER, true);
         Source source = Source.of(UUID.randomUUID(), "src", "ТЕЛЕГРАМ", "Официальный", "0 6 * * *", true);
@@ -119,116 +97,131 @@ class NotificationEngineTest {
     private void stubSuccessfulClaim() {
         when(notificationPort.claimForProcessing(pending.id()))
                 .thenReturn(Optional.of(pending.startProcessing()));
-        when(notificationPort.save(any(Notification.class)))
+    }
+
+    private void stubDeliverySaving() {
+        when(deliveryPort.save(any(NotificationDelivery.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
+    private void stubSuccessfulRetry() {
+        when(retryProcessingService.process(any(UUID.class), any(Instant.class)))
+                .thenAnswer(invocation -> {
+                    UUID deliveryId = invocation.getArgument(0);
+                    Notification claimed = pending.startProcessing();
+                    NotificationDelivery sent = NotificationDelivery.of(deliveryId, claimed,
+                            channel("email", "personal@example.com", true),
+                            DeliveryStatus.SENT, null);
+                    return new DeliveryProcessingOutcome(sent, true);
+                });
+    }
+
     @Test
-    void pendingAllChannelsSucceedBecomesSent() {
+    void pendingCreatesDeliveryPerEnabledChannelAndProcessesThem() {
         NotificationChannel email = channel("email", "personal@example.com", true);
         NotificationChannel telegram = channel("telegram", "123456789", true);
         stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, telegram));
+        stubDeliverySaving();
+        stubSuccessfulRetry();
+        Notification sent = pending.startProcessing().markSent();
+        when(notificationPort.findById(pending.id())).thenReturn(Optional.of(sent));
 
         Notification result = engine.process(pending.id());
 
         assertEquals(NotificationStatus.SENT, result.status());
         assertEquals(pending.id(), result.id());
         assertEquals(MESSAGE, result.message());
-        assertEquals(1, emailAdapter.calls.size());
-        assertEquals(1, telegramAdapter.calls.size());
-        assertSame(email, emailAdapter.calls.get(0).channel());
-        assertEquals(MESSAGE, emailAdapter.calls.get(0).message());
-        assertSame(telegram, telegramAdapter.calls.get(0).channel());
-        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationPort, times(1)).save(captor.capture());
-        assertEquals(NotificationStatus.SENT, captor.getValue().status());
-        verify(notificationPort).claimForProcessing(pending.id());
-        verify(notificationPort, never()).findById(any(UUID.class));
+        ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
+        verify(deliveryPort, times(2)).save(captor.capture());
+        List<NotificationDelivery> created = captor.getAllValues();
+        assertEquals(List.of(email.id(), telegram.id()),
+                created.stream().map(delivery -> delivery.notificationChannel().id()).toList());
+        assertTrue(created.stream()
+                .allMatch(delivery -> delivery.status() == DeliveryStatus.READY));
+        assertTrue(created.stream()
+                .allMatch(delivery -> MESSAGE.equals(delivery.notification().message())));
+        assertEquals(2, created.stream().map(NotificationDelivery::id).distinct().count());
+        verify(retryProcessingService, times(2)).process(any(UUID.class), any(Instant.class));
+        verify(retryProcessingService).process(eq(created.get(0).id()), any(Instant.class));
+        verify(retryProcessingService).process(eq(created.get(1).id()), any(Instant.class));
+        verifyNoInteractions(finalizationService);
     }
 
     @Test
-    void oneChannelFailureBecomesFailedButOthersProcessed() {
-        NotificationChannel email = channel("email", "personal@example.com", true);
-        NotificationChannel telegram = channel("telegram", "123456789", true);
-        telegramAdapter.result = DeliveryResult.temporaryFailure();
+    void sameTypeChannelsProduceIndependentDeliveries() {
+        NotificationChannel personal = channel("email", "personal@example.com", true);
+        NotificationChannel work = channel("email", "work@example.com", true);
         stubSuccessfulClaim();
-        when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, telegram));
+        when(channelPort.findByUserId(user.id())).thenReturn(List.of(personal, work));
+        stubDeliverySaving();
+        stubSuccessfulRetry();
+        when(notificationPort.findById(pending.id()))
+                .thenReturn(Optional.of(pending.startProcessing().markSent()));
 
-        Notification result = engine.process(pending.id());
+        engine.process(pending.id());
 
-        assertEquals(NotificationStatus.FAILED, result.status());
-        assertEquals(pending.id(), result.id());
-        assertEquals(1, emailAdapter.calls.size());
-        assertEquals(1, telegramAdapter.calls.size());
+        ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
+        verify(deliveryPort, times(2)).save(captor.capture());
+        assertEquals(List.of(personal.id(), work.id()),
+                captor.getAllValues().stream()
+                        .map(delivery -> delivery.notificationChannel().id()).toList());
     }
 
     @Test
-    void noEnabledChannelsBecomesFailedWithoutDelivery() {
-        stubSuccessfulClaim();
-        when(channelPort.findByUserId(user.id())).thenReturn(List.of(
-                channel("email", "personal@example.com", false),
-                channel("telegram", "123456789", false)));
-
-        Notification result = engine.process(pending.id());
-
-        assertEquals(NotificationStatus.FAILED, result.status());
-        assertTrue(emailAdapter.calls.isEmpty());
-        assertTrue(telegramAdapter.calls.isEmpty());
-    }
-
-    @Test
-    void absentChannelsBecomesFailedWithoutDelivery() {
-        stubSuccessfulClaim();
-        when(channelPort.findByUserId(user.id())).thenReturn(List.of());
-
-        Notification result = engine.process(pending.id());
-
-        assertEquals(NotificationStatus.FAILED, result.status());
-        assertTrue(emailAdapter.calls.isEmpty());
-        assertTrue(telegramAdapter.calls.isEmpty());
-    }
-
-    @Test
-    void onlyEnabledChannelsAreProcessed() {
+    void onlyEnabledChannelsProduceDeliveries() {
         NotificationChannel enabled = channel("email", "personal@example.com", true);
         NotificationChannel disabled = channel("telegram", "123456789", false);
         stubSuccessfulClaim();
         when(channelPort.findByUserId(user.id())).thenReturn(List.of(enabled, disabled));
+        stubDeliverySaving();
+        stubSuccessfulRetry();
+        when(notificationPort.findById(pending.id()))
+                .thenReturn(Optional.of(pending.startProcessing().markSent()));
 
         Notification result = engine.process(pending.id());
 
         assertEquals(NotificationStatus.SENT, result.status());
-        assertEquals(1, emailAdapter.calls.size());
-        assertTrue(telegramAdapter.calls.isEmpty());
+        ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
+        verify(deliveryPort, times(1)).save(captor.capture());
+        assertEquals(enabled.id(), captor.getValue().notificationChannel().id());
+        verify(retryProcessingService, times(1)).process(any(UUID.class), any(Instant.class));
     }
 
     @Test
-    void unknownChannelTypeFailsChannelButOthersContinue() {
-        NotificationChannel email = channel("email", "personal@example.com", true);
-        NotificationChannel sms = channel("sms", "+70000000000", true);
+    void noEnabledChannelsFinalizesWithoutDelivery() {
         stubSuccessfulClaim();
-        when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, sms));
+        when(channelPort.findByUserId(user.id())).thenReturn(List.of(
+                channel("email", "personal@example.com", false)));
+        Notification failed = pending.startProcessing().markFailed();
+        when(finalizationService.finalizeNotification(pending.id())).thenReturn(failed);
 
         Notification result = engine.process(pending.id());
 
         assertEquals(NotificationStatus.FAILED, result.status());
-        assertEquals(1, emailAdapter.calls.size());
+        verify(deliveryPort, never()).save(any(NotificationDelivery.class));
+        verifyNoInteractions(retryProcessingService);
+        verify(finalizationService).finalizeNotification(pending.id());
     }
 
     @Test
-    void adapterExceptionFailsChannelButOthersContinue() {
+    void staleDeliveryOutcomeDoesNotTriggerFinalization() {
         NotificationChannel email = channel("email", "personal@example.com", true);
-        NotificationChannel telegram = channel("telegram", "123456789", true);
-        emailAdapter.failure = new RuntimeException("smtp down");
         stubSuccessfulClaim();
-        when(channelPort.findByUserId(user.id())).thenReturn(List.of(email, telegram));
+        when(channelPort.findByUserId(user.id())).thenReturn(List.of(email));
+        stubDeliverySaving();
+        NotificationDelivery processingView = NotificationDelivery.of(UUID.randomUUID(),
+                pending.startProcessing(), email, DeliveryStatus.PROCESSING, null);
+        when(retryProcessingService.process(any(UUID.class), any(Instant.class)))
+                .thenReturn(new DeliveryProcessingOutcome(processingView, false));
+        Notification current = pending.startProcessing();
+        when(notificationPort.findById(pending.id())).thenReturn(Optional.of(current));
 
         Notification result = engine.process(pending.id());
 
-        assertEquals(NotificationStatus.FAILED, result.status());
-        assertEquals(1, emailAdapter.calls.size());
-        assertEquals(1, telegramAdapter.calls.size());
+        assertSame(current, result);
+        verify(retryProcessingService, times(1)).process(any(UUID.class), any(Instant.class));
+        verifyNoInteractions(finalizationService);
     }
 
     @Test
@@ -243,9 +236,7 @@ class NotificationEngineTest {
         verify(notificationPort).claimForProcessing(pending.id());
         verify(notificationPort).findById(pending.id());
         verify(notificationPort, never()).save(any(Notification.class));
-        verifyNoInteractions(channelPort);
-        assertTrue(emailAdapter.calls.isEmpty());
-        assertTrue(telegramAdapter.calls.isEmpty());
+        verifyNoInteractions(channelPort, deliveryPort, retryProcessingService, finalizationService);
     }
 
     @Test
@@ -258,9 +249,7 @@ class NotificationEngineTest {
 
         assertSame(processing, result);
         verify(notificationPort, never()).save(any(Notification.class));
-        verifyNoInteractions(channelPort);
-        assertTrue(emailAdapter.calls.isEmpty());
-        assertTrue(telegramAdapter.calls.isEmpty());
+        verifyNoInteractions(channelPort, deliveryPort, retryProcessingService, finalizationService);
     }
 
     @Test
@@ -273,7 +262,7 @@ class NotificationEngineTest {
 
         assertSame(sent, result);
         verify(notificationPort, never()).save(any(Notification.class));
-        verifyNoInteractions(channelPort);
+        verifyNoInteractions(channelPort, deliveryPort, retryProcessingService, finalizationService);
     }
 
     @Test
@@ -287,9 +276,7 @@ class NotificationEngineTest {
         assertSame(failed, result);
         assertEquals(NotificationStatus.FAILED, result.status());
         verify(notificationPort, never()).save(any(Notification.class));
-        verifyNoInteractions(channelPort);
-        assertTrue(emailAdapter.calls.isEmpty());
-        assertTrue(telegramAdapter.calls.isEmpty());
+        verifyNoInteractions(channelPort, deliveryPort, retryProcessingService, finalizationService);
     }
 
     @Test
@@ -299,14 +286,55 @@ class NotificationEngineTest {
         when(notificationPort.findById(id)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class, () -> engine.process(id));
-        verifyNoInteractions(channelPort);
+        verifyNoInteractions(channelPort, deliveryPort, retryProcessingService, finalizationService);
         verify(notificationPort, never()).save(any(Notification.class));
     }
 
     @Test
     void nullIdRejected() {
         assertThrows(NullPointerException.class, () -> engine.process(null));
-        verifyNoInteractions(notificationPort, channelPort);
+        verifyNoInteractions(notificationPort, channelPort, deliveryPort,
+                retryProcessingService, finalizationService);
+    }
+
+    @Test
+    void nullDependenciesRejected() {
+        assertThrows(NullPointerException.class,
+                () -> new NotificationEngine(null, channelPort, deliveryPort,
+                        retryProcessingService, finalizationService));
+        assertThrows(NullPointerException.class,
+                () -> new NotificationEngine(notificationPort, null, deliveryPort,
+                        retryProcessingService, finalizationService));
+        assertThrows(NullPointerException.class,
+                () -> new NotificationEngine(notificationPort, channelPort, null,
+                        retryProcessingService, finalizationService));
+        assertThrows(NullPointerException.class,
+                () -> new NotificationEngine(notificationPort, channelPort, deliveryPort,
+                        null, finalizationService));
+        assertThrows(NullPointerException.class,
+                () -> new NotificationEngine(notificationPort, channelPort, deliveryPort,
+                        retryProcessingService, null));
+    }
+
+    @Test
+    void engineHasNoDeliveryOrLockDependencies() {
+        Set<String> forbidden = Set.of(
+                "com.zyibin.app.blackoutradar.application.notification.DeliveryPort",
+                "com.zyibin.app.blackoutradar.application.notification.DeliveryChannelRegistry",
+                "java.util.concurrent.locks.ReentrantLock",
+                "java.util.concurrent.locks.Lock",
+                "java.util.concurrent.ConcurrentHashMap",
+                "java.util.concurrent.ConcurrentMap");
+        for (Field field : NotificationEngine.class.getDeclaredFields()) {
+            String typeName = field.getType().getName();
+            assertFalse(forbidden.contains(typeName),
+                    "Engine must not depend on " + typeName);
+        }
+        Stream.of(NotificationEngine.class.getDeclaredMethods())
+                .forEach(method -> assertFalse(Modifier.isSynchronized(method.getModifiers()),
+                        "Engine must not use synchronized " + method.getName()));
+        verifyNoInteractions(notificationPort, channelPort, deliveryPort,
+                retryProcessingService, finalizationService);
     }
 
     @Test
@@ -319,6 +347,7 @@ class NotificationEngineTest {
                     assertFalse(name.contains("smtp"), "Engine must not contain " + name);
                     assertFalse(name.contains("sms"), "Engine must not contain " + name);
                 });
-        verifyNoMoreInteractions(notificationPort, channelPort);
+        verifyNoMoreInteractions(notificationPort, channelPort, deliveryPort,
+                retryProcessingService, finalizationService);
     }
 }

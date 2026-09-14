@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zyibin.app.blackoutradar.TestcontainersConfiguration;
 import com.zyibin.app.blackoutradar.application.notification.DeliveryClaim;
+import com.zyibin.app.blackoutradar.application.notification.DeliveryProcessingOutcome;
 import com.zyibin.app.blackoutradar.application.notification.DeliveryPort;
 import com.zyibin.app.blackoutradar.application.notification.DeliveryResult;
 import com.zyibin.app.blackoutradar.application.notification.NotificationDeliveryFencingPort;
@@ -189,7 +190,7 @@ class RetryProcessingIntegrationTest {
         Fixture fixture = saveReadyDelivery();
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
-        NotificationDelivery result = processingService.process(fixture.delivery().id(), now);
+        NotificationDelivery result = processingService.process(fixture.delivery().id(), now).delivery();
 
         assertEquals(DeliveryStatus.SENT, result.status());
         assertEquals(DeliveryStatus.SENT,
@@ -217,7 +218,7 @@ class RetryProcessingIntegrationTest {
         // processing "now" must never be in the future.
         Instant firstNow = Instant.now().truncatedTo(ChronoUnit.MILLIS).minusSeconds(61);
 
-        NotificationDelivery retried = processingService.process(fixture.delivery().id(), firstNow);
+        NotificationDelivery retried = processingService.process(fixture.delivery().id(), firstNow).delivery();
 
         assertEquals(DeliveryStatus.READY, retried.status());
         assertEquals(firstNow.plus(Duration.ofMinutes(1)), retried.nextAttemptAt());
@@ -227,7 +228,7 @@ class RetryProcessingIntegrationTest {
 
         stubAdapter.result = DeliveryResult.success();
         NotificationDelivery sent =
-                processingService.process(fixture.delivery().id(), Instant.now());
+                processingService.process(fixture.delivery().id(), Instant.now()).delivery();
 
         assertEquals(DeliveryStatus.SENT, sent.status());
         List<DeliveryAttempt> history = attemptHistory(fixture.delivery().id());
@@ -246,7 +247,7 @@ class RetryProcessingIntegrationTest {
         Fixture fixture = saveReadyDelivery();
         Instant now = Instant.now();
 
-        NotificationDelivery result = processingService.process(fixture.delivery().id(), now);
+        NotificationDelivery result = processingService.process(fixture.delivery().id(), now).delivery();
 
         assertEquals(DeliveryStatus.FAILED, result.status());
         List<DeliveryAttempt> history = attemptHistory(fixture.delivery().id());
@@ -254,7 +255,7 @@ class RetryProcessingIntegrationTest {
         assertEquals(DeliveryAttemptResult.PERMANENT_FAILURE, history.get(0).result());
 
         NotificationDelivery repeated =
-                processingService.process(fixture.delivery().id(), now.plusSeconds(3600));
+                processingService.process(fixture.delivery().id(), now.plusSeconds(3600)).delivery();
 
         assertEquals(DeliveryStatus.FAILED, repeated.status());
         assertEquals(1, attemptHistory(fixture.delivery().id()).size());
@@ -273,16 +274,16 @@ class RetryProcessingIntegrationTest {
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant firstNow = base.minusSeconds(400);
 
-        NotificationDelivery afterFirst = processingService.process(fixture.delivery().id(), firstNow);
+        NotificationDelivery afterFirst = processingService.process(fixture.delivery().id(), firstNow).delivery();
         assertEquals(DeliveryStatus.READY, afterFirst.status());
         assertEquals(firstNow.plus(Duration.ofMinutes(1)), afterFirst.nextAttemptAt());
 
         Instant secondNow = base.minusSeconds(300);
-        NotificationDelivery afterSecond = processingService.process(fixture.delivery().id(), secondNow);
+        NotificationDelivery afterSecond = processingService.process(fixture.delivery().id(), secondNow).delivery();
         assertEquals(DeliveryStatus.READY, afterSecond.status());
         assertEquals(secondNow.plus(Duration.ofMinutes(5)), afterSecond.nextAttemptAt());
 
-        NotificationDelivery afterThird = processingService.process(fixture.delivery().id(), base);
+        NotificationDelivery afterThird = processingService.process(fixture.delivery().id(), base).delivery();
         assertEquals(DeliveryStatus.FAILED, afterThird.status());
 
         List<DeliveryAttempt> history = attemptHistory(fixture.delivery().id());
@@ -292,7 +293,7 @@ class RetryProcessingIntegrationTest {
                 .allMatch(attempt -> attempt.result() == DeliveryAttemptResult.TEMPORARY_FAILURE));
 
         NotificationDelivery repeated =
-                processingService.process(fixture.delivery().id(), Instant.now());
+                processingService.process(fixture.delivery().id(), Instant.now()).delivery();
         assertEquals(DeliveryStatus.FAILED, repeated.status());
         assertEquals(3, attemptHistory(fixture.delivery().id()).size());
         assertEquals(3, stubAdapter.deliveries.get());
@@ -306,19 +307,19 @@ class RetryProcessingIntegrationTest {
         NotificationChannel secondChannel = saveChannel(fixture.notification());
         NotificationDelivery secondDelivery = saveDelivery(fixture.notification(), secondChannel);
 
-        NotificationDelivery sentA = processingService.process(fixture.delivery().id(), Instant.now());
+        NotificationDelivery sentA = processingService.process(fixture.delivery().id(), Instant.now()).delivery();
         assertEquals(DeliveryStatus.SENT, sentA.status());
 
         stubAdapter.result = DeliveryResult.temporaryFailure();
         // Backdated so the scheduled retry is already due at wall-clock time.
         Instant firstNowB = Instant.now().truncatedTo(ChronoUnit.MILLIS).minusSeconds(61);
-        NotificationDelivery retriedB = processingService.process(secondDelivery.id(), firstNowB);
+        NotificationDelivery retriedB = processingService.process(secondDelivery.id(), firstNowB).delivery();
         assertEquals(DeliveryStatus.READY, retriedB.status());
         assertNotNull(retriedB.nextAttemptAt());
 
         stubAdapter.result = DeliveryResult.success();
         NotificationDelivery sentB =
-                processingService.process(secondDelivery.id(), Instant.now());
+                processingService.process(secondDelivery.id(), Instant.now()).delivery();
         assertEquals(DeliveryStatus.SENT, sentB.status());
 
         assertEquals(DeliveryStatus.SENT,
@@ -343,9 +344,9 @@ class RetryProcessingIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             CountDownLatch start = new CountDownLatch(1);
-            Future<NotificationDelivery> first =
+            Future<DeliveryProcessingOutcome> first =
                     executor.submit(() -> processAfterStart(fixture.delivery().id(), now, start));
-            Future<NotificationDelivery> second =
+            Future<DeliveryProcessingOutcome> second =
                     executor.submit(() -> processAfterStart(fixture.delivery().id(), now, start));
             start.countDown();
 
@@ -378,7 +379,7 @@ class RetryProcessingIntegrationTest {
         assertEquals(1, attemptHistory(fixture.delivery().id()).size());
 
         NotificationDelivery resultB =
-                processingService.process(fixture.delivery().id(), Instant.now());
+                processingService.process(fixture.delivery().id(), Instant.now()).delivery();
 
         assertEquals(DeliveryStatus.SENT, resultB.status());
         List<DeliveryAttempt> history = attemptHistory(fixture.delivery().id());
@@ -473,7 +474,7 @@ class RetryProcessingIntegrationTest {
         stubAdapter.result = DeliveryResult.success();
     }
 
-    private NotificationDelivery processAfterStart(UUID id, Instant now, CountDownLatch start)
+    private DeliveryProcessingOutcome processAfterStart(UUID id, Instant now, CountDownLatch start)
             throws Exception {
         if (!start.await(30, TimeUnit.SECONDS)) {
             throw new IllegalStateException("workers did not start in time");

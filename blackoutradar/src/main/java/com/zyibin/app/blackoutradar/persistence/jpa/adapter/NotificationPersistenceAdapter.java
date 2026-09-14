@@ -93,6 +93,12 @@ public class NotificationPersistenceAdapter implements NotificationPort {
         return repository.findById(id).map(this::toDomain);
     }
 
+    @Override
+    @Transactional
+    public Optional<Notification> lockById(UUID id) {
+        return repository.findByIdForUpdate(id).map(this::toDomain);
+    }
+
     private Notification toDomain(NotificationEntity entity) {
         SubscriptionEntity subscriptionEntity = entity.getSubscription();
         PowerOutageEntity powerOutageEntity = entity.getPowerOutage();

@@ -2,32 +2,40 @@ package com.zyibin.app.blackoutradar.application.notification;
 
 import com.zyibin.app.blackoutradar.domain.notification.Notification;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationChannel;
+import com.zyibin.app.blackoutradar.domain.notification.NotificationDelivery;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationChannelPort;
+import com.zyibin.app.blackoutradar.domain.notification.port.NotificationDeliveryPort;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationPort;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class NotificationEngine {
 
-    private static final Logger log = LoggerFactory.getLogger(NotificationEngine.class);
-
     private final NotificationPort notificationPort;
     private final NotificationChannelPort channelPort;
-    private final DeliveryChannelRegistry channelRegistry;
+    private final NotificationDeliveryPort deliveryPort;
+    private final RetryProcessingService retryProcessingService;
+    private final NotificationFinalizationService finalizationService;
 
     public NotificationEngine(NotificationPort notificationPort,
                               NotificationChannelPort channelPort,
-                              DeliveryChannelRegistry channelRegistry) {
+                              NotificationDeliveryPort deliveryPort,
+                              RetryProcessingService retryProcessingService,
+                              NotificationFinalizationService finalizationService) {
         this.notificationPort = Objects.requireNonNull(notificationPort, "notificationPort must not be null");
         this.channelPort = Objects.requireNonNull(channelPort, "channelPort must not be null");
-        this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry must not be null");
+        this.deliveryPort = Objects.requireNonNull(deliveryPort, "deliveryPort must not be null");
+        this.retryProcessingService =
+                Objects.requireNonNull(retryProcessingService, "retryProcessingService must not be null");
+        this.finalizationService =
+                Objects.requireNonNull(finalizationService, "finalizationService must not be null");
     }
 
     public Notification process(UUID notificationId) {
@@ -42,27 +50,19 @@ public class NotificationEngine {
                 .stream()
                 .filter(NotificationChannel::isEnabled)
                 .toList();
-        boolean allDelivered = !channels.isEmpty();
+        Instant now = Instant.now();
+        List<NotificationDelivery> deliveries = new ArrayList<>(channels.size());
         for (NotificationChannel channel : channels) {
-            if (!deliverToChannel(processing, channel)) {
-                allDelivered = false;
-            }
+            deliveries.add(deliveryPort.save(
+                    NotificationDelivery.of(UUID.randomUUID(), processing, channel)));
         }
-        Notification result = allDelivered ? processing.markSent() : processing.markFailed();
-        return notificationPort.save(result);
-    }
-
-    private boolean deliverToChannel(Notification notification, NotificationChannel channel) {
-        var adapter = channelRegistry.find(channel.type());
-        if (adapter.isEmpty()) {
-            log.warn("No delivery adapter registered for channel type {}", channel.type());
-            return false;
+        if (deliveries.isEmpty()) {
+            return finalizationService.finalizeNotification(notificationId);
         }
-        try {
-            return adapter.get().deliver(channel, notification.message()).successful();
-        } catch (RuntimeException e) {
-            log.warn("Delivery failed for channel {} to {}", channel.type(), channel.destination(), e);
-            return false;
+        for (NotificationDelivery delivery : deliveries) {
+            retryProcessingService.process(delivery.id(), now);
         }
+        return notificationPort.findById(notificationId)
+                .orElseThrow(() -> new NoSuchElementException("Notification not found: " + notificationId));
     }
 }

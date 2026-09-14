@@ -488,15 +488,21 @@ Notification не удаляется
 
 Notification Engine
 может принять решение
-о повторной обработке.
+о повторной обработке
+на уровне Notification.
+
+Актуальная модель:
+решение о повторной обработке
+определяется Retry Policy
+на уровне NotificationDelivery
+(ADR-012, ADR-013).
 
 ---
 
 # Retry
 
-Retry является
-ответственностью
-Notification Engine.
+Retry относится
+к обработке Notification.
 
 Retry Policy не является
 частью текущего
@@ -531,14 +537,13 @@ SENT
 - время следующей обработки;
 - история Delivery Attempt
 
-определяются
-в Notification Engine.
+определены
+в рамках обработки Notification.
 
 Детальная модель Retry
-будет определена
-в рамках:
-
-`TASK 27 — Retry and Delivery Processing`.
+определена
+в ADR-012
+и ADR-013.
 
 ---
 
@@ -549,15 +554,15 @@ Delivery Attempt
 текущей Domain Model.
 
 История попыток доставки
-относится к Notification Engine.
+относится к обработке Notification.
 
 Конкретная модель
 Delivery Attempt,
 ее хранение
 и lifecycle
-будут определены
-при реализации
-Retry and Delivery Processing.
+определены
+в ADR-012
+и ADR-013.
 
 ---
 
@@ -668,6 +673,10 @@ Notification не отвечает за:
 
 ## Notification Engine
 
+Исходный перечень ответственности
+(исторический контекст;
+уточнён ADR-011, ADR-012, ADR-013):
+
 Отвечает за:
 
 - принятие Notification
@@ -678,6 +687,32 @@ Notification не отвечает за:
 - обработку результата;
 - обновление состояния Notification;
 - Retry Decision.
+
+Актуальная модель после ADR-012,
+ADR-013 и ADR-014:
+
+Notification Engine:
+
+* принимает готовый Notification;
+* определяет включённые NotificationChannel;
+* создает NotificationDelivery;
+* передает NotificationDelivery в Retry Processing.
+
+Notification Engine не принимает
+самостоятельное решение о Retry.
+
+Retry Decision принимает Retry Policy
+на уровне NotificationDelivery.
+
+Notification Engine не определяет
+итоговое состояние Notification
+по результату одной доставки.
+
+Итоговое состояние Notification
+определяется отдельной операцией
+финализации после успешного
+fenced-завершения NotificationDelivery.
+
 
 Notification Engine
 не отвечает за:
@@ -910,6 +945,10 @@ Notification.
 
 Engine:
 
+Исходная последовательность
+(исторический контекст;
+актуальная модель — ниже):
+
 1. принимает Notification;
 2. переводит его
    в PROCESSING;
@@ -921,6 +960,12 @@ Engine:
    в SENT или FAILED;
 8. при необходимости
    принимает Retry Decision.
+
+Шаги 3–8 в актуальной архитектуре
+выполняются на уровне NotificationDelivery
+через Retry Processing;
+конкретная Retry Policy
+определяется ADR-013.
 
 Конкретная Retry Policy
 не определяется
@@ -992,7 +1037,16 @@ Notification Persistence.
 
 Retry и Delivery Attempt
 не входят
-в текущую persistence model.
+в Domain Model Notification.
+
+Их persistence реализуется
+через отдельные модели
+NotificationDelivery
+и DeliveryAttempt.
+
+Конкретная модель Retry Processing
+определяется ADR-012
+и ADR-013.
 
 ---
 
@@ -1045,6 +1099,9 @@ Retry Processing, Delivery Attempt).
 - основная последовательность Pipeline:
 
 ```text
+Основная последовательность Pipeline после Match:
+
+```text
 DuplicateResolver
 ↓
 PowerOutage
@@ -1060,7 +1117,28 @@ Application / Processing Flow
 Notification
 ↓
 Notification Engine
+↓
+NotificationDelivery
+↓
+Retry Processing
+↓
+DeliveryPort
+↓
+Channel Registry
+↓
+Delivery Adapter
+↓
+External Delivery Provider
 ```
+
+`NotificationDelivery` является конкретной единицей доставки Notification.
+
+Каждая `NotificationDelivery` обрабатывается независимо.
+
+Retry и состояние конкретной доставки принадлежат `NotificationDelivery`, а не `Notification`.
+
+После успешного fenced-завершения `NotificationDelivery` запускается финализация `Notification`, которая принимает итоговое состояние на основании актуального состояния всех связанных доставок.
+
 
 Предшествующая цепочка
 `Source` → `Scheduler` → `Provider Registry` → `ProviderContext` → `OutageProvider` → `ParsedOutage`
@@ -1070,6 +1148,90 @@ Notification Engine
 Новое архитектурное решение
 для данного уточнения
 не требуется.
+
+Версия 1.3 уточняет
+Notification Pipeline после реализации
+TASK 27 и TASK 28.
+
+Основная последовательность Pipeline
+расширена до полной цепочки доставки:
+
+```text
+Notification
+↓
+Notification Engine
+↓
+NotificationDelivery
+↓
+Retry Processing
+↓
+DeliveryPort
+↓
+Channel Registry
+↓
+Delivery Adapter
+↓
+External Delivery Provider
+```
+
+`NotificationDelivery` является
+самостоятельной единицей доставки
+и Retry Processing.
+
+Retry state и `DeliveryAttempt`
+не входят в состояние `Notification`.
+
+После успешного fenced-завершения
+`NotificationDelivery` выполняется
+финализация `Notification`.
+
+Финализация:
+
+* выполняется только после успешного fenced update;
+* получает короткую блокировку строки `Notification` в PostgreSQL;
+* повторно читает актуальное состояние всех связанных `NotificationDelivery`;
+* определяет итоговое состояние `Notification`
+  по состояниям всех доставок.
+
+Правила финализации:
+
+```text
+есть READY или PROCESSING
+        ↓
+Notification = PROCESSING
+```
+
+```text
+все NotificationDelivery → SENT
+        ↓
+Notification = SENT
+```
+
+```text
+все NotificationDelivery завершены
+и хотя бы одна → FAILED
+        ↓
+Notification = FAILED
+```
+
+Конкурентная обработка
+`NotificationDelivery`
+остается независимой и может
+выполняться параллельно.
+
+Данное уточнение соответствует
+ADR-012, ADR-013 и ADR-014.
+
+Новое состояние `Notification`
+не вводится.
+
+Retry state не переносится
+в `Notification`.
+
+Для изменения механизма
+конкурентной финализации требуется
+отдельное архитектурное решение.
+
 
 ---
 
@@ -1108,6 +1270,11 @@ Notification Engine
 - [ADR-005 — PowerOutage Event Model](ADR-005-PowerOutage-Event-Model.md)
 - [ADR-006 — Matching Engine](ADR-006-Matching-Engine.md)
 - [ADR-007 — Replaceable Infrastructure](ADR-007-Replaceable-Infrastructure.md)
+- [ADR-011 — Notification Channels and Extensible Delivery](ADR-011 — Notification Channels and Extensible Delivery.md)
+- [ADR-012 — Retry and Delivery Attempt Processing](ADR-012 — Retry and Delivery Attempt Processing.md)
+- [ADR-013 — Retry Policy, Fencing and Recovery](ADR-013 — Retry Policy, Fencing and Recovery.md)
+- [ADR-014 — Concurrent Notification Finalization](ADR-014 — Concurrent Notification Finalization.md)
+
 
 ## Диаграммы
 

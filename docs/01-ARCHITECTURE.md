@@ -195,6 +195,14 @@ Application Layer
                       | Delivery Adapter   |
                       +----------------------+
 
+Выше — сокращённое представление.
+Полная цепочка доставки
+(NotificationDelivery,
+Retry Processing,
+DeliveryAttempt)
+приведена в разделе
+# Retry Architecture.
+
 ---
 
 # Основные подсистемы
@@ -521,6 +529,11 @@ Channel Registry
 ↓
 Delivery Adapter
 
+Выше — сокращённое представление.
+Полная цепочка доставки
+приведена в разделе
+# Retry Architecture.
+
 Подробнее:
 
 [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
@@ -540,13 +553,25 @@ Notification Engine:
 - принимает Notification
   в обработку;
 - определяет включённые каналы;
-- выбирает Delivery Adapter
-  через Channel Registry;
-- передает готовое сообщение
-  выбранному Delivery Adapter;
-- получает результат;
-- обновляет состояние Notification;
-- в будущем управляет Retry.
+- для каждого включённого канала
+  создаётся отдельная NotificationDelivery;
+- конкретная доставка обрабатывается
+  через Retry Processing;
+- запускает обработку Notification;
+- определяет включённые NotificationChannel;
+- создает NotificationDelivery;
+- передает NotificationDelivery в Retry Processing.
+
+Retry Decision принимает Retry Policy.
+
+Итоговое состояние Notification
+определяется отдельной операцией
+финализации после успешного
+fenced-завершения NotificationDelivery.
+
+Notification Engine не вызывает
+Delivery Adapter непосредственно.
+
 
 Notification Engine
 не отвечает за:
@@ -573,8 +598,10 @@ Adapter:
 
 - выполняет конкретную
   операцию доставки;
+- классифицирует технический результат
+  (SUCCESS / TEMPORARY_FAILURE / PERMANENT_FAILURE);
 - возвращает результат
-  Notification Engine.
+  Retry Processing.
 
 Adapter не содержит
 бизнес-решения
@@ -719,6 +746,11 @@ Channel Registry
 ↓
 
 Delivery Adapter
+
+Выше — сокращённое представление.
+Полная цепочка доставки
+приведена в разделе
+# Retry Architecture.
 
 ---
 
@@ -894,9 +926,9 @@ FAILED
 принял Notification
 в обработку.
 
-Retry является
-ответственностью
-Notification Engine.
+Retry выполняется
+на уровне NotificationDelivery
+через Retry Processing.
 
 Повторная обработка
 FAILED Notification
@@ -905,8 +937,9 @@ Notification.
 
 Конкретная Retry Policy
 и Delivery Attempt
-не являются частью
-текущей Domain Model.
+относятся к NotificationDelivery
+и описаны в разделе
+# Retry Architecture.
 
 ---
 
@@ -1078,6 +1111,11 @@ Mapping выполняется
 
 # Notification Direction
 
+Ниже — сокращённое представление.
+Полная цепочка доставки
+приведена в разделе
+# Retry Architecture.
+
 Application / Processing Flow
 ↓
 Notification
@@ -1241,6 +1279,61 @@ READY
 
 Fencing защищает состояние приложения от устаревшего обработчика, но не гарантирует отсутствие дублей, если внешний Delivery Provider принял сообщение до аварийного завершения приложения.
 
+## Notification Finalization
+
+После успешного fenced-завершения `NotificationDelivery` выполняется финализация соответствующего `Notification`.
+
+Финализация не является частью Retry state и не изменяет модель `NotificationDelivery`.
+
+Финализатор:
+
+* получает короткую блокировку строки `Notification` в PostgreSQL;
+* повторно читает актуальное состояние всех связанных `NotificationDelivery`;
+* принимает итоговое состояние `Notification` только по текущему состоянию всех доставок.
+
+Правила:
+
+```text
+есть READY или PROCESSING
+        ↓
+Notification = PROCESSING
+```
+
+```text
+все NotificationDelivery → SENT
+        ↓
+Notification = SENT
+```
+
+```text
+все NotificationDelivery завершены
+и хотя бы одна → FAILED
+        ↓
+Notification = FAILED
+```
+
+Сами `NotificationDelivery` продолжают обрабатываться независимо и могут завершаться параллельно.
+
+Блокировка `Notification` используется только для сериализации итогового решения.
+
+Во время блокировки не выполняются:
+
+* Delivery Adapter;
+* внешний сетевой вызов;
+* Retry Processing;
+* создание DeliveryAttempt;
+* другие длительные операции.
+
+Для финализации не используются:
+
+* `synchronized`;
+* JVM locks;
+* `ReentrantLock`;
+* in-memory locks.
+
+`processingToken` и fencing продолжают защищать отдельную `NotificationDelivery`. Финализация `Notification` является отдельным механизмом.
+
+
 ## Boundary Rules
 
 Domain Model не знает о:
@@ -1292,11 +1385,11 @@ Infrastructure отвечает за:
 
 [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
 
-[ADR-011 — Notification Channels and Extensible Delivery](adr/ADR-011-Notification-Channels-and-Extensible-Delivery.md)
+[ADR-011 — Notification Channels and Extensible Delivery](<adr/ADR-011-Notification Channels and Extensible Delivery.md>)
 
-[ADR-012 — Retry and Delivery Attempt Processing](adr/ADR-012-Retry-and-Delivery-Attempt-Processing.md)
+[ADR-012 — Retry and Delivery Attempt Processing](<adr/ADR-012-Retry and Delivery Attempt Processing.md>)
 
-[ADR-013 — Retry Policy, Fencing and Recovery](adr/ADR-013-Retry-Policy-Fencing-and-Recovery.md)
+[ADR-013 — Retry Policy, Fencing and Recovery](<adr/ADR-013 — Retry Policy, Fencing and Recovery.md>)
 
 [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
 
@@ -1321,6 +1414,11 @@ Infrastructure отвечает за:
 - [ADR-001 — Domain First Architecture](adr/ADR-001-Domain-First-Architecture.md)
 - [ADR-003 — Outage Processing Pipeline](adr/ADR-003-Outage-Processing-Pipeline.md)
 - [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
+- [ADR-011 — Notification Channels and Extensible Delivery](<adr/ADR-011-Notification Channels and Extensible Delivery.md>)
+- [ADR-012 — Retry and Delivery Attempt Processing](<adr/ADR-012-Retry and Delivery Attempt Processing.md>)
+- [ADR-013 — Retry Policy, Fencing and Recovery](<adr/ADR-013 — Retry Policy, Fencing and Recovery.md>)
+- [ADR-014 — Concurrent Notification Finalization](adr/ADR-014 — Concurrent Notification Finalization.md)
+
 
 ## Диаграммы
 

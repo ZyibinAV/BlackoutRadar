@@ -18,4 +18,13 @@ public interface NotificationPort {
      * or empty when it can no longer be captured.
      */
     Optional<Notification> claimForProcessing(UUID id);
+
+    /**
+     * Returns the notification holding a PostgreSQL row lock on it until the
+     * surrounding transaction commits. Intended only for the short
+     * finalization decision (see ADR-014): lock row, re-read deliveries,
+     * decide, save, commit. No delivery or network work may run while
+     * the lock is held.
+     */
+    Optional<Notification> lockById(UUID id);
 }

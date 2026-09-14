@@ -27,6 +27,7 @@ public class RetryProcessingService {
     private final DeliveryAttemptPort attemptPort;
     private final DeliveryChannelRegistry channelRegistry;
     private final RetryPolicy retryPolicy;
+    private final NotificationFinalizationService finalizationService;
     private final Clock clock;
 
     @Autowired
@@ -34,9 +35,10 @@ public class RetryProcessingService {
                                   NotificationDeliveryFencingPort fencingPort,
                                   DeliveryAttemptPort attemptPort,
                                   DeliveryChannelRegistry channelRegistry,
-                                  RetryPolicy retryPolicy) {
+                                  RetryPolicy retryPolicy,
+                                  NotificationFinalizationService finalizationService) {
         this(deliveryPort, fencingPort, attemptPort, channelRegistry, retryPolicy,
-                Clock.systemUTC());
+                finalizationService, Clock.systemUTC());
     }
 
     public RetryProcessingService(NotificationDeliveryPort deliveryPort,
@@ -44,22 +46,26 @@ public class RetryProcessingService {
                                   DeliveryAttemptPort attemptPort,
                                   DeliveryChannelRegistry channelRegistry,
                                   RetryPolicy retryPolicy,
+                                  NotificationFinalizationService finalizationService,
                                   Clock clock) {
         this.deliveryPort = Objects.requireNonNull(deliveryPort, "deliveryPort must not be null");
         this.fencingPort = Objects.requireNonNull(fencingPort, "fencingPort must not be null");
         this.attemptPort = Objects.requireNonNull(attemptPort, "attemptPort must not be null");
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry must not be null");
         this.retryPolicy = Objects.requireNonNull(retryPolicy, "retryPolicy must not be null");
+        this.finalizationService =
+                Objects.requireNonNull(finalizationService, "finalizationService must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    public NotificationDelivery process(UUID deliveryId, Instant now) {
+    public DeliveryProcessingOutcome process(UUID deliveryId, Instant now) {
         Objects.requireNonNull(deliveryId, "deliveryId must not be null");
         Objects.requireNonNull(now, "now must not be null");
         Optional<DeliveryClaim> claimed = fencingPort.claim(deliveryId, now);
         if (claimed.isEmpty()) {
-            return deliveryPort.findById(deliveryId)
-                    .orElseThrow(() -> new NoSuchElementException("NotificationDelivery not found: " + deliveryId));
+            return new DeliveryProcessingOutcome(deliveryPort.findById(deliveryId)
+                    .orElseThrow(() -> new NoSuchElementException("NotificationDelivery not found: " + deliveryId)),
+                    false);
         }
         DeliveryClaim claim = claimed.get();
         NotificationDelivery processing = claim.delivery();
@@ -73,11 +79,13 @@ public class RetryProcessingService {
         NotificationDelivery result = applyResult(processing, completed, now);
         Optional<NotificationDelivery> saved = fencingPort.saveIfOwned(processing.id(), ownershipToken, result);
         if (saved.isPresent()) {
-            return saved.get();
+            finalizationService.finalizeNotification(processing.notification().id());
+            return new DeliveryProcessingOutcome(saved.get(), true);
         }
         log.warn("Lost ownership for notification delivery {}", deliveryId);
-        return deliveryPort.findById(deliveryId)
-                .orElseThrow(() -> new NoSuchElementException("NotificationDelivery not found: " + deliveryId));
+        return new DeliveryProcessingOutcome(deliveryPort.findById(deliveryId)
+                .orElseThrow(() -> new NoSuchElementException("NotificationDelivery not found: " + deliveryId)),
+                false);
     }
 
     private DeliveryAttemptResult executeDelivery(NotificationDelivery processing) {

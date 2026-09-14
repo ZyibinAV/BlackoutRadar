@@ -1,10 +1,31 @@
 @startuml
+title BlackoutRadar — Notification Pipeline
 
-:Notification Engine;
-:PROCESSING;
-:Determine enabled delivery channels;
-:Resolve Delivery Adapter via Channel Registry;
-:Delivery Port;
-:Delivery Adapter;
+skinparam linetype ortho
+
+start
+
+:Notification;
+:NotificationDelivery;
+
+fork
+    :Retry Scheduler;
+    :Retry Processing;
+    :Atomic Claim;
+    :DeliveryAttempt;
+    :DeliveryResult;
+    :RetryPolicy;
+    :RetryDecision;
+    :READY + nextAttemptAt;
+    :DeliveryPort;
+    :Channel Registry;
+    :Delivery Adapter;
+fork again
+    :Recovery Scheduler;
+    :Recovery;
+    :READY;
+end fork
+
+stop
 
 @enduml

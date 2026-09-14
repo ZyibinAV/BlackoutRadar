@@ -1169,6 +1169,40 @@ subscription_id,
 power_outage_id
 )
 
+## Concurrent Notification Finalization
+
+Финализация `Notification` использует короткую блокировку строки `notification` в PostgreSQL.
+
+Блокировка применяется только при принятии итогового решения:
+
+```text
+fenced NotificationDelivery update
+        ↓
+lock notification row
+        ↓
+read current NotificationDelivery states
+        ↓
+calculate Notification status
+        ↓
+update notification
+        ↓
+commit
+```
+
+Блокировка строки `notification` не используется во время:
+
+* Delivery Adapter;
+* внешнего сетевого вызова;
+* Retry Processing;
+* создания DeliveryAttempt;
+* Recovery;
+* других длительных операций.
+
+Конкурентная обработка отдельных `NotificationDelivery` не сериализуется через строку `notification`.
+
+PostgreSQL-блокировка используется только для сериализации итогового решения по `Notification`.
+
+
 ### Notification Status
 
 Поле `status` хранит
@@ -1202,16 +1236,14 @@ delivery attempt.
 
 #### SENT
 
-Notification Engine
-успешно завершил
-обработку Notification.
+Все связанные `NotificationDelivery` успешно завершены.
 
-SENT означает успешное
-завершение операции доставки.
+Финализатор установил состояние `Notification` в `SENT`.
 
-SENT не означает
-гарантированное прочтение
-или ознакомление пользователя.
+`SENT` означает успешное завершение всех предусмотренных доставок.
+
+`SENT` не означает гарантированное прочтение или ознакомление пользователя.
+
 
 #### FAILED
 
@@ -1219,8 +1251,15 @@ SENT не означает
 завершилась ошибкой.
 
 Notification сохраняется
-и может быть повторно
-обработан Notification Engine.
+в истории.
+
+Повторная доставка выполняется
+на уровне связанных `NotificationDelivery`
+через Retry Processing.
+
+`Notification` не является
+единицей Retry Processing.
+
 
 ### Индексы
 
@@ -1265,14 +1304,22 @@ RESTRICT
 Notification не удаляется
 при ошибке доставки.
 
-Механизм Retry
-не хранится в текущей
-модели базы данных.
+Состояние Retry хранится
+в `notification_delivery`:
 
-Retry Policy,
-планирование повторных попыток
-и история попыток доставки
-относятся к Notification Engine.
+- `status`;
+- `next_attempt_at`;
+- `processing_token`.
+
+История фактических попыток
+хранится в `delivery_attempt`.
+
+Retry Decision принимается
+на уровне `NotificationDelivery`
+на основе Retry Policy.
+
+Подробно таблицы описаны
+в разделах ниже.
 
 ---
 
@@ -1344,7 +1391,19 @@ notification_channel
 
 ### ON DELETE
 
-Используются ограничения, предотвращающие удаление связанных записей, пока существует NotificationDelivery.
+```text
+notification → notification_delivery:
+
+RESTRICT
+
+notification_channel → notification_delivery:
+
+RESTRICT
+```
+
+Связанные записи
+не удаляются,
+пока существует NotificationDelivery.
 
 ---
 
@@ -1380,6 +1439,18 @@ UNIQUE(
 ```
 
 `attempt_number` нумеруется независимо для каждой `NotificationDelivery`.
+
+### ON DELETE
+
+```text
+notification_delivery → delivery_attempt:
+
+RESTRICT
+```
+
+Историческая `DeliveryAttempt`
+сохраняется после recovery
+и не удаляется вместе с доставкой.
 
 ### Индексы
 

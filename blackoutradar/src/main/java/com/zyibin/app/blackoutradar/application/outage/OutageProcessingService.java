@@ -2,6 +2,7 @@ package com.zyibin.app.blackoutradar.application.outage;
 
 import com.zyibin.app.blackoutradar.application.matching.Candidate;
 import com.zyibin.app.blackoutradar.application.matching.CandidateFinder;
+import com.zyibin.app.blackoutradar.application.notification.NotificationEngine;
 import com.zyibin.app.blackoutradar.application.notification.NotificationMessageFactory;
 import com.zyibin.app.blackoutradar.domain.address.Address;
 import com.zyibin.app.blackoutradar.domain.matching.Match;
@@ -24,19 +25,22 @@ public class OutageProcessingService {
     private final MatchingEngine matchingEngine;
     private final NotificationMessageFactory notificationMessageFactory;
     private final NotificationPort notificationPort;
+    private final NotificationEngine notificationEngine;
 
     public OutageProcessingService(ParsedOutageProcessor parsedOutageProcessor,
                                    DuplicateResolver duplicateResolver,
                                    CandidateFinder candidateFinder,
                                    MatchingEngine matchingEngine,
                                    NotificationMessageFactory notificationMessageFactory,
-                                   NotificationPort notificationPort) {
+                                   NotificationPort notificationPort,
+                                   NotificationEngine notificationEngine) {
         this.parsedOutageProcessor = Objects.requireNonNull(parsedOutageProcessor, "parsedOutageProcessor must not be null");
         this.duplicateResolver = Objects.requireNonNull(duplicateResolver, "duplicateResolver must not be null");
         this.candidateFinder = Objects.requireNonNull(candidateFinder, "candidateFinder must not be null");
         this.matchingEngine = Objects.requireNonNull(matchingEngine, "matchingEngine must not be null");
         this.notificationMessageFactory = Objects.requireNonNull(notificationMessageFactory, "notificationMessageFactory must not be null");
         this.notificationPort = Objects.requireNonNull(notificationPort, "notificationPort must not be null");
+        this.notificationEngine = Objects.requireNonNull(notificationEngine, "notificationEngine must not be null");
     }
 
     public List<Match> process(ParsedOutage parsedOutage) {
@@ -60,7 +64,8 @@ public class OutageProcessingService {
             String message = notificationMessageFactory.createMessage(match.powerOutage());
             Notification notification = Notification.of(UUID.randomUUID(),
                     match.subscription(), match.powerOutage(), message);
-            notificationPort.save(notification);
+            Notification saved = notificationPort.save(notification);
+            notificationEngine.process(saved.id());
         }
         return matches;
     }
