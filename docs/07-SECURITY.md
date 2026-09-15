@@ -540,8 +540,8 @@ Security Hardening.
 - [01-ARCHITECTURE](01-ARCHITECTURE.md)
 - [02-DOMAIN_MODEL](02-DOMAIN_MODEL.md)
 - [03-DATABASE](03-DATABASE.md)
-- [TASK_PLAN](TASK_PLAN.md)
-- [TASK_LOG](TASK_LOG.md)
+- [TASK_PLAN](ai/TASK_PLAN.md)
+- [TASK_LOG](ai/TASK_LOG.md)
 
 ---
 
@@ -549,7 +549,7 @@ Security Hardening.
 
 - [ADR-001 — Domain First Architecture](adr/ADR-001-Domain-First-Architecture.md)
 - [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
-- [ADR-009 — RefreshToken Security Boundary](adr/ADR-009-RefreshToken-Security-Boundary.md)
+- [ADR-009 — RefreshToken Security Boundary](<adr/ADR-009-RefreshToken Security Boundary.md>)
 
 ---
 

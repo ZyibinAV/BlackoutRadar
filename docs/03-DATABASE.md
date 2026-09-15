@@ -1150,6 +1150,28 @@ Application / Processing Flow
 использует эту уникальность
 для идемпотентного создания Notification.
 
+### Atomic get-or-create
+
+Канонический `Notification`
+возвращается атомарной операцией:
+
+```text
+INSERT ...
+ON CONFLICT (subscription_id, power_outage_id)
+DO NOTHING
+```
+
+Если строка создана —
+возвращается созданный `Notification`.
+
+Если строка не создана
+из-за конфликта —
+возвращается уже существующий
+`Notification` отдельным SELECT.
+
+Исключение нарушения уникальности
+не используется как штатная ветка.
+
 ### Поля
 
 | Поле | Тип | NULL | Ограничения |
@@ -1188,6 +1210,12 @@ update notification
         ↓
 commit
 ```
+
+Fenced completion `NotificationDelivery`
+и финализация `Notification`
+выполняются в одной короткой транзакции.
+Внешняя доставка выполняется
+вне этой транзакции.
 
 Блокировка строки `notification` не используется во время:
 

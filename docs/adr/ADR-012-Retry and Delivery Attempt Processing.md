@@ -131,7 +131,7 @@ DeliveryAttempt
 
 ---
 
-# 2. Retry выполняется на уровне конкретного NotificationChannel
+# 2. Retry выполняется на уровне конкретной NotificationDelivery
 
 Notification может иметь несколько включённых `NotificationChannel`.
 
@@ -254,15 +254,13 @@ SENT
 PROCESSING
    ↓
 FAILED
-
-FAILED
-   ↓
-READY
-   ↓
-PROCESSING
 ```
 
-При временной ошибке:
+`FAILED` является terminal state
+и не переходит обратно в `READY`.
+
+При временной ошибке
+и разрешённом Retry:
 
 ```text
 PROCESSING

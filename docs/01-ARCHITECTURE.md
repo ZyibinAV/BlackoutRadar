@@ -29,6 +29,10 @@ Architecture отвечает на вопрос:
 - [ADR-001 — Domain First Architecture](adr/ADR-001-Domain-First-Architecture.md)
 - [ADR-003 — Outage Processing Pipeline](adr/ADR-003-Outage-Processing-Pipeline.md)
 - [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
+- [ADR-011 — Notification Channels and Extensible Delivery](<adr/ADR-011-Notification Channels and Extensible Delivery.md>)
+- [ADR-012 — Retry and Delivery Attempt Processing](<adr/ADR-012-Retry and Delivery Attempt Processing.md>)
+- [ADR-013 — Retry Policy, Fencing and Recovery](<adr/ADR-013 — Retry Policy, Fencing and Recovery.md>)
+- [ADR-014 — Concurrent Notification Finalization](<adr/ADR-014 — Concurrent Notification Finalization.md>)
 
 ---
 
@@ -552,15 +556,11 @@ Notification Engine:
 - принимает готовый Notification;
 - принимает Notification
   в обработку;
-- определяет включённые каналы;
-- для каждого включённого канала
-  создаётся отдельная NotificationDelivery;
-- конкретная доставка обрабатывается
-  через Retry Processing;
-- запускает обработку Notification;
-- определяет включённые NotificationChannel;
-- создает NotificationDelivery;
-- передает NotificationDelivery в Retry Processing.
+- получает включённые NotificationChannel;
+- создаёт отдельную NotificationDelivery
+  для каждого включённого канала;
+- передаёт NotificationDelivery
+  в Retry Processing.
 
 Retry Decision принимает Retry Policy.
 
@@ -569,9 +569,13 @@ Retry Decision принимает Retry Policy.
 финализации после успешного
 fenced-завершения NotificationDelivery.
 
-Notification Engine не вызывает
-Delivery Adapter непосредственно.
+Notification Engine:
 
+- не принимает Retry Decision;
+- не вызывает Delivery Adapter;
+- не выполняет внешнюю доставку;
+- не определяет итоговый Notification status
+  по одной delivery.
 
 Notification Engine
 не отвечает за:
@@ -931,8 +935,9 @@ Retry выполняется
 через Retry Processing.
 
 Повторная обработка
-FAILED Notification
-не создает новый
+выполняется на уровне
+NotificationDelivery
+и не создает новый
 Notification.
 
 Конкретная Retry Policy
@@ -1351,7 +1356,8 @@ Application отвечает за:
 * Retry Policy;
 * Retry Processing;
 * координацию DeliveryAttempt;
-* принятие Retry Decision.
+* принятие Retry Decision;
+* финализацию Notification.
 
 Infrastructure отвечает за:
 
@@ -1360,6 +1366,7 @@ Infrastructure отвечает за:
 * atomic claim;
 * ownership fencing;
 * recovery;
+* финализацию Notification;
 * Delivery Adapter.
 
 

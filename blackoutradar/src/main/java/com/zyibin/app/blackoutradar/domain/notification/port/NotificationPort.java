@@ -1,6 +1,7 @@
 package com.zyibin.app.blackoutradar.domain.notification.port;
 
 import com.zyibin.app.blackoutradar.domain.notification.Notification;
+import com.zyibin.app.blackoutradar.domain.notification.NotificationCreation;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,6 +12,14 @@ public interface NotificationPort {
     Optional<Notification> findBySubscriptionAndPowerOutage(UUID subscriptionId, UUID powerOutageId);
 
     Notification save(Notification notification);
+
+    /**
+     * Atomically returns the canonical notification for the given subscription
+     * and power outage, creating it when absent. The physical
+     * {@code UNIQUE(subscription_id, power_outage_id)} constraint stays the
+     * arbiter; no uniqueness-violation exception is used as a regular branch.
+     */
+    NotificationCreation findOrCreate(Notification notification);
 
     /**
      * Captures the notification for processing if it is still pending.

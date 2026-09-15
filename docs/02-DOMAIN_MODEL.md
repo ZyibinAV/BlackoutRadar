@@ -459,7 +459,8 @@ TransformerStation.
 Candidate не является самостоятельным
 persisted Business Domain Entity.
 
-Candidate реализуется в рамках Phase 6.
+Candidate реализован
+в рамках Matching Engine.
 
 ---
 
@@ -475,7 +476,8 @@ Match является результатом Matching Engine
 
 Match не является самостоятельным persisted объектом.
 
-Match реализуется в рамках Phase 6.
+Match реализован
+в рамках Matching Engine.
 
 ---
 

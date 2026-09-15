@@ -158,6 +158,12 @@ Notification finalization
 
 Устаревший worker не должен изменять итоговое состояние `Notification`.
 
+## 2.1. Fenced completion и финализация выполняются в одной короткой транзакции
+
+Fenced completion `NotificationDelivery` и финализация `Notification` выполняются в одной короткой транзакции базы данных. Внешняя доставка выполняется вне этой транзакции. Это исключает состояние, при котором terminal `NotificationDelivery` уже зафиксирована, а обязательная финализация `Notification` не была зафиксирована.
+
+Если транзакция финального завершения откатывается, `NotificationDelivery` не остаётся терминально завершённой в результате этой операции.
+
 ---
 
 ## 3. Для финализации используется блокировка строки Notification в PostgreSQL
@@ -284,6 +290,13 @@ Notification = SENT
 ```text
 all terminal + at least one FAILED
         ↓
+Notification = FAILED
+```
+
+Если у `Notification` нет ни одной связанной `NotificationDelivery`
+(например, нет включённых каналов), итоговым состоянием является:
+
+```text
 Notification = FAILED
 ```
 

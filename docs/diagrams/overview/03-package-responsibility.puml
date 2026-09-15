@@ -41,7 +41,7 @@ matching ----> address : compares
 
 matching ----> common : uses
 
-notification ----> user : delivers
+notification ----> user : reads channels
 
 notification ----> outage : references
 

@@ -20,6 +20,11 @@ fork
     :DeliveryPort;
     :Channel Registry;
     :Delivery Adapter;
+    :fenced completion;
+    :Notification Finalization;
+    :lock Notification;
+    :read all NotificationDelivery;
+    :PROCESSING / SENT / FAILED;
 fork again
     :Recovery Scheduler;
     :Recovery;

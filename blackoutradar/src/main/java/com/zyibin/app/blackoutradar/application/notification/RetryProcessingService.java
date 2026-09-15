@@ -2,6 +2,7 @@ package com.zyibin.app.blackoutradar.application.notification;
 
 import com.zyibin.app.blackoutradar.domain.notification.DeliveryAttempt;
 import com.zyibin.app.blackoutradar.domain.notification.DeliveryAttemptResult;
+import com.zyibin.app.blackoutradar.domain.notification.Notification;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationChannel;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationDelivery;
 import com.zyibin.app.blackoutradar.domain.notification.port.DeliveryAttemptPort;
@@ -27,7 +28,7 @@ public class RetryProcessingService {
     private final DeliveryAttemptPort attemptPort;
     private final DeliveryChannelRegistry channelRegistry;
     private final RetryPolicy retryPolicy;
-    private final NotificationFinalizationService finalizationService;
+    private final DeliveryCompletionService completionService;
     private final Clock clock;
 
     @Autowired
@@ -36,9 +37,9 @@ public class RetryProcessingService {
                                   DeliveryAttemptPort attemptPort,
                                   DeliveryChannelRegistry channelRegistry,
                                   RetryPolicy retryPolicy,
-                                  NotificationFinalizationService finalizationService) {
+                                  DeliveryCompletionService completionService) {
         this(deliveryPort, fencingPort, attemptPort, channelRegistry, retryPolicy,
-                finalizationService, Clock.systemUTC());
+                completionService, Clock.systemUTC());
     }
 
     public RetryProcessingService(NotificationDeliveryPort deliveryPort,
@@ -46,15 +47,15 @@ public class RetryProcessingService {
                                   DeliveryAttemptPort attemptPort,
                                   DeliveryChannelRegistry channelRegistry,
                                   RetryPolicy retryPolicy,
-                                  NotificationFinalizationService finalizationService,
+                                  DeliveryCompletionService completionService,
                                   Clock clock) {
         this.deliveryPort = Objects.requireNonNull(deliveryPort, "deliveryPort must not be null");
         this.fencingPort = Objects.requireNonNull(fencingPort, "fencingPort must not be null");
         this.attemptPort = Objects.requireNonNull(attemptPort, "attemptPort must not be null");
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry must not be null");
         this.retryPolicy = Objects.requireNonNull(retryPolicy, "retryPolicy must not be null");
-        this.finalizationService =
-                Objects.requireNonNull(finalizationService, "finalizationService must not be null");
+        this.completionService =
+                Objects.requireNonNull(completionService, "completionService must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -75,12 +76,15 @@ public class RetryProcessingService {
                 DeliveryAttempt.started(UUID.randomUUID(), processing, attemptNumber, now));
         DeliveryAttemptResult attemptResult = executeDelivery(processing);
         DeliveryAttempt completed = attemptPort.save(
-                started.complete(Instant.now(clock), attemptResult, null));
+                started.complete(Instant.now(clock), attemptResult, errorCodeFor(attemptResult)));
         NotificationDelivery result = applyResult(processing, completed, now);
-        Optional<NotificationDelivery> saved = fencingPort.saveIfOwned(processing.id(), ownershipToken, result);
-        if (saved.isPresent()) {
-            finalizationService.finalizeNotification(processing.notification().id());
-            return new DeliveryProcessingOutcome(saved.get(), true);
+        Optional<Notification> finalized =
+                completionService.complete(processing.id(), ownershipToken, result);
+        if (finalized.isPresent()) {
+            NotificationDelivery committed = deliveryPort.findById(processing.id())
+                    .orElseThrow(() -> new NoSuchElementException(
+                            "NotificationDelivery not found: " + processing.id()));
+            return new DeliveryProcessingOutcome(committed, true);
         }
         log.warn("Lost ownership for notification delivery {}", deliveryId);
         return new DeliveryProcessingOutcome(deliveryPort.findById(deliveryId)
@@ -121,5 +125,13 @@ public class RetryProcessingService {
             return processing.scheduleRetry(decision.nextAttemptAt());
         }
         return processing.markFailed();
+    }
+
+    private String errorCodeFor(DeliveryAttemptResult attemptResult) {
+        return switch (attemptResult) {
+            case SUCCESS -> null;
+            case TEMPORARY_FAILURE -> "TEMPORARY_FAILURE";
+            case PERMANENT_FAILURE -> "PERMANENT_FAILURE";
+        };
     }
 }

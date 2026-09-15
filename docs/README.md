@@ -137,4 +137,6 @@ Implementation
 ↓
 
 Изменение кода
-```- [Security Flow](diagrams/detailed/10-security-flow.puml)
+```
+
+- [Security Flow](diagrams/detailed/10-security-flow.puml)

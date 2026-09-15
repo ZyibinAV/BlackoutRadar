@@ -424,8 +424,8 @@ Security layer должен самостоятельно
 - [02-DOMAIN_MODEL](../02-DOMAIN_MODEL.md)
 - [03-DATABASE](../03-DATABASE.md)
 - [07-SECURITY](../07-SECURITY.md)
-- [TASK_PLAN](../TASK_PLAN.md)
-- [TASK_LOG](../TASK_LOG.md)
+- [TASK_PLAN](../ai/TASK_PLAN.md)
+- [TASK_LOG](../ai/TASK_LOG.md)
 - [ADR-001 — Domain First Architecture](ADR-001-Domain-First-Architecture.md)
 - [ADR-007 — Replaceable Infrastructure](ADR-007-Replaceable-Infrastructure.md)
 

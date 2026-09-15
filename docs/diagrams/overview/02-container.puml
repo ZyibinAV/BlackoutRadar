@@ -19,6 +19,14 @@ package "Spring Boot Application" {
 
     [Notification Engine]
 
+    [Retry Processing]
+
+    [DeliveryPort]
+
+    [Channel Registry]
+
+    [Delivery Adapter]
+
 }
 
 database PostgreSQL
@@ -43,9 +51,19 @@ queue Telegram
 
 [Notification Engine] --> PostgreSQL
 
-[Notification Engine] --> SMTP
+[Notification Engine] --> [Retry Processing]
 
-[Notification Engine] --> Telegram
+[Retry Processing] --> PostgreSQL
+
+[Retry Processing] --> [DeliveryPort]
+
+[DeliveryPort] --> [Channel Registry]
+
+[Channel Registry] --> [Delivery Adapter]
+
+[Delivery Adapter] --> SMTP
+
+[Delivery Adapter] --> Telegram
 
 [REST API] --> MinIO
 

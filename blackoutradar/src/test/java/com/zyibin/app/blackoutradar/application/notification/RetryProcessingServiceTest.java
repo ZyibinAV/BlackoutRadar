@@ -94,7 +94,7 @@ class RetryProcessingServiceTest {
     @Mock private NotificationDeliveryFencingPort fencingPort;
     @Mock private DeliveryAttemptPort attemptPort;
     @Mock private RetryPolicy retryPolicy;
-    @Mock private NotificationFinalizationService finalizationService;
+    @Mock private DeliveryCompletionService completionService;
 
     private StubAdapter emailAdapter;
     private RetryProcessingService service;
@@ -107,7 +107,7 @@ class RetryProcessingServiceTest {
     void setUp() {
         emailAdapter = new StubAdapter("email");
         service = new RetryProcessingService(deliveryPort, fencingPort, attemptPort,
-                new DeliveryChannelRegistry(List.of(emailAdapter)), retryPolicy, finalizationService);
+                new DeliveryChannelRegistry(List.of(emailAdapter)), retryPolicy, completionService);
 
         user = User.of(UUID.randomUUID(), "user@example.com", UserRole.USER, true);
         Source source = Source.of(UUID.randomUUID(), "src", "ТЕЛЕГРАМ", "Официальный", "0 6 * * *", true);
@@ -133,10 +133,10 @@ class RetryProcessingServiceTest {
                 .thenReturn(Optional.of(new DeliveryClaim(processing, token)));
         when(attemptPort.save(any(DeliveryAttempt.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(fencingPort.saveIfOwned(eq(delivery.id()), eq(token), any(NotificationDelivery.class)))
-                .thenAnswer(invocation -> Optional.of(invocation.getArgument(2)));
-        when(finalizationService.finalizeNotification(delivery.notification().id()))
-                .thenAnswer(invocation -> delivery.notification());
+        when(completionService.complete(eq(delivery.id()), eq(token), any(NotificationDelivery.class)))
+                .thenAnswer(invocation -> Optional.of(delivery.notification()));
+        when(deliveryPort.findById(delivery.id()))
+                .thenReturn(Optional.of(delivery.startProcessing().markSent()));
     }
 
     @Test
@@ -148,14 +148,13 @@ class RetryProcessingServiceTest {
 
         assertEquals(DeliveryStatus.SENT, result.status());
         assertEquals(delivery.id(), result.id());
-        InOrder inOrder = inOrder(fencingPort, attemptPort, retryPolicy, finalizationService);
+        InOrder inOrder = inOrder(fencingPort, attemptPort, retryPolicy, completionService);
         inOrder.verify(fencingPort).claim(delivery.id(), NOW);
         inOrder.verify(attemptPort).nextAttemptNumber(delivery.id());
         inOrder.verify(attemptPort, times(2)).save(any(DeliveryAttempt.class));
-        inOrder.verify(fencingPort).saveIfOwned(eq(delivery.id()), any(UUID.class),
+        inOrder.verify(completionService).complete(eq(delivery.id()), any(UUID.class),
                 any(NotificationDelivery.class));
-        inOrder.verify(finalizationService).finalizeNotification(delivery.notification().id());
-        verifyNoMoreInteractions(deliveryPort, fencingPort, attemptPort, retryPolicy, finalizationService);
+        verifyNoMoreInteractions(deliveryPort, fencingPort, attemptPort, retryPolicy, completionService);
     }
 
     @Test
@@ -201,8 +200,10 @@ class RetryProcessingServiceTest {
         assertEquals(started.id(), completed.id());
         assertNull(started.completedAt());
         assertNull(started.result());
+        assertNull(started.errorCode());
         assertEquals(DeliveryAttemptResult.SUCCESS, completed.result());
         assertTrue(completed.isCompleted());
+        assertNull(completed.errorCode());
     }
 
     @Test
@@ -214,7 +215,8 @@ class RetryProcessingServiceTest {
 
         assertEquals(DeliveryStatus.SENT, outcome.delivery().status());
         assertTrue(outcome.fencedCompletion());
-        verify(finalizationService).finalizeNotification(delivery.notification().id());
+        verify(completionService).complete(eq(delivery.id()), any(UUID.class),
+                any(NotificationDelivery.class));
         verifyNoInteractions(retryPolicy);
     }
 
@@ -223,7 +225,7 @@ class RetryProcessingServiceTest {
         Instant completedAt = NOW.plusSeconds(30);
         RetryProcessingService clockedService = new RetryProcessingService(deliveryPort, fencingPort,
                 attemptPort, new DeliveryChannelRegistry(List.of(emailAdapter)), retryPolicy,
-                finalizationService, Clock.fixed(completedAt, ZoneOffset.UTC));
+                completionService, Clock.fixed(completedAt, ZoneOffset.UTC));
         stubClaimSuccess();
         when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
 
@@ -243,14 +245,45 @@ class RetryProcessingServiceTest {
     void nullClockRejected() {
         assertThrows(NullPointerException.class, () -> new RetryProcessingService(deliveryPort,
                 fencingPort, attemptPort, new DeliveryChannelRegistry(List.of(emailAdapter)),
-                retryPolicy, finalizationService, null));
+                retryPolicy, completionService, null));
     }
 
     @Test
-    void nullFinalizationServiceRejected() {
+    void nullCompletionServiceRejected() {
         assertThrows(NullPointerException.class, () -> new RetryProcessingService(deliveryPort,
                 fencingPort, attemptPort, new DeliveryChannelRegistry(List.of(emailAdapter)),
                 retryPolicy, null, Clock.systemUTC()));
+    }
+
+    @Test
+    void completedAttemptRecordsSafeErrorCode() {
+        emailAdapter.result = DeliveryResult.permanentFailure();
+        stubClaimSuccess();
+        when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
+
+        service.process(delivery.id(), NOW);
+
+        ArgumentCaptor<DeliveryAttempt> captor = ArgumentCaptor.forClass(DeliveryAttempt.class);
+        verify(attemptPort, times(2)).save(captor.capture());
+        assertNull(captor.getAllValues().get(0).errorCode());
+        assertEquals("PERMANENT_FAILURE", captor.getAllValues().get(1).errorCode());
+    }
+
+    @Test
+    void temporaryFailureRecordsSafeErrorCode() {
+        emailAdapter.result = DeliveryResult.temporaryFailure();
+        stubClaimSuccess();
+        when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
+        when(retryPolicy.decide(eq(DeliveryAttemptResult.TEMPORARY_FAILURE), eq(1), eq(NOW)))
+                .thenReturn(RetryDecision.retryAt(NEXT));
+        when(deliveryPort.findById(delivery.id()))
+                .thenReturn(Optional.of(delivery.startProcessing().scheduleRetry(NEXT)));
+
+        service.process(delivery.id(), NOW);
+
+        ArgumentCaptor<DeliveryAttempt> captor = ArgumentCaptor.forClass(DeliveryAttempt.class);
+        verify(attemptPort, times(2)).save(captor.capture());
+        assertEquals("TEMPORARY_FAILURE", captor.getAllValues().get(1).errorCode());
     }
 
     @Test
@@ -260,6 +293,8 @@ class RetryProcessingServiceTest {
         when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
         when(retryPolicy.decide(eq(DeliveryAttemptResult.TEMPORARY_FAILURE), eq(1), eq(NOW)))
                 .thenReturn(RetryDecision.retryAt(NEXT));
+        when(deliveryPort.findById(delivery.id()))
+                .thenReturn(Optional.of(delivery.startProcessing().scheduleRetry(NEXT)));
 
         NotificationDelivery result = service.process(delivery.id(), NOW).delivery();
 
@@ -275,6 +310,8 @@ class RetryProcessingServiceTest {
         when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(3);
         when(retryPolicy.decide(eq(DeliveryAttemptResult.TEMPORARY_FAILURE), eq(3), eq(NOW)))
                 .thenReturn(RetryDecision.noRetry());
+        when(deliveryPort.findById(delivery.id()))
+                .thenReturn(Optional.of(delivery.startProcessing().markFailed()));
 
         NotificationDelivery result = service.process(delivery.id(), NOW).delivery();
 
@@ -287,6 +324,8 @@ class RetryProcessingServiceTest {
         emailAdapter.result = DeliveryResult.permanentFailure();
         stubClaimSuccess();
         when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
+        when(deliveryPort.findById(delivery.id()))
+                .thenReturn(Optional.of(delivery.startProcessing().markFailed()));
 
         NotificationDelivery result = service.process(delivery.id(), NOW).delivery();
 
@@ -308,10 +347,10 @@ class RetryProcessingServiceTest {
         when(attemptPort.nextAttemptNumber(smsDelivery.id())).thenReturn(1);
         when(attemptPort.save(any(DeliveryAttempt.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(fencingPort.saveIfOwned(eq(smsDelivery.id()), eq(smsToken), any(NotificationDelivery.class)))
-                .thenAnswer(invocation -> Optional.of(invocation.getArgument(2)));
-        when(finalizationService.finalizeNotification(smsDelivery.notification().id()))
-                .thenAnswer(invocation -> smsDelivery.notification());
+        when(completionService.complete(eq(smsDelivery.id()), eq(smsToken), any(NotificationDelivery.class)))
+                .thenAnswer(invocation -> Optional.of(smsDelivery.notification()));
+        when(deliveryPort.findById(smsDelivery.id()))
+                .thenReturn(Optional.of(smsDelivery.startProcessing().markFailed()));
 
         DeliveryProcessingOutcome outcome = service.process(smsDelivery.id(), NOW);
 
@@ -328,6 +367,8 @@ class RetryProcessingServiceTest {
         when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
         when(retryPolicy.decide(eq(DeliveryAttemptResult.TEMPORARY_FAILURE), eq(1), eq(NOW)))
                 .thenReturn(RetryDecision.retryAt(NEXT));
+        when(deliveryPort.findById(delivery.id()))
+                .thenReturn(Optional.of(delivery.startProcessing().scheduleRetry(NEXT)));
 
         NotificationDelivery result = service.process(delivery.id(), NOW).delivery();
 
@@ -342,14 +383,13 @@ class RetryProcessingServiceTest {
         when(fencingPort.claim(delivery.id(), NOW)).thenReturn(Optional.empty());
         when(deliveryPort.findById(delivery.id())).thenReturn(Optional.of(processing));
 
-        NotificationDelivery result = service.process(delivery.id(), NOW).delivery();
+        DeliveryProcessingOutcome outcome = service.process(delivery.id(), NOW);
 
-        assertSame(processing, result);
+        assertSame(processing, outcome.delivery());
+        assertFalse(outcome.fencedCompletion());
         verify(fencingPort).claim(delivery.id(), NOW);
         verify(deliveryPort).findById(delivery.id());
-        verifyNoInteractions(attemptPort, retryPolicy, finalizationService);
-        verify(fencingPort, never()).saveIfOwned(any(UUID.class), any(UUID.class),
-                any(NotificationDelivery.class));
+        verifyNoInteractions(attemptPort, retryPolicy, completionService);
         assertTrue(emailAdapter.calls.isEmpty());
     }
 
@@ -362,19 +402,19 @@ class RetryProcessingServiceTest {
         when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
         when(attemptPort.save(any(DeliveryAttempt.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(fencingPort.saveIfOwned(eq(delivery.id()), eq(token), any(NotificationDelivery.class)))
+        when(completionService.complete(eq(delivery.id()), eq(token), any(NotificationDelivery.class)))
                 .thenReturn(Optional.empty());
         NotificationDelivery current = delivery.startProcessing();
         when(deliveryPort.findById(delivery.id())).thenReturn(Optional.of(current));
 
-        NotificationDelivery result = service.process(delivery.id(), NOW).delivery();
+        DeliveryProcessingOutcome outcome = service.process(delivery.id(), NOW);
 
-        assertSame(current, result);
+        assertSame(current, outcome.delivery());
+        assertFalse(outcome.fencedCompletion());
         verify(fencingPort).claim(delivery.id(), NOW);
         verify(attemptPort, times(2)).save(any(DeliveryAttempt.class));
-        verify(fencingPort).saveIfOwned(eq(delivery.id()), eq(token), any(NotificationDelivery.class));
+        verify(completionService).complete(eq(delivery.id()), eq(token), any(NotificationDelivery.class));
         verify(deliveryPort).findById(delivery.id());
-        verifyNoInteractions(finalizationService);
         assertEquals(1, emailAdapter.calls.size());
     }
 
@@ -387,14 +427,14 @@ class RetryProcessingServiceTest {
         when(attemptPort.nextAttemptNumber(delivery.id())).thenReturn(1);
         when(attemptPort.save(any(DeliveryAttempt.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(fencingPort.saveIfOwned(eq(delivery.id()), eq(token), any(NotificationDelivery.class)))
+        when(completionService.complete(eq(delivery.id()), eq(token), any(NotificationDelivery.class)))
                 .thenReturn(Optional.empty());
         when(deliveryPort.findById(delivery.id())).thenReturn(Optional.of(processing));
 
         DeliveryProcessingOutcome outcome = service.process(delivery.id(), NOW);
 
         assertFalse(outcome.fencedCompletion());
-        verifyNoInteractions(finalizationService);
+        verify(completionService).complete(eq(delivery.id()), eq(token), any(NotificationDelivery.class));
     }
 
     @Test
@@ -404,7 +444,7 @@ class RetryProcessingServiceTest {
         when(deliveryPort.findById(id)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class, () -> service.process(id, NOW));
-        verifyNoInteractions(attemptPort, retryPolicy, finalizationService);
+        verifyNoInteractions(attemptPort, retryPolicy, completionService);
         assertTrue(emailAdapter.calls.isEmpty());
     }
 
@@ -412,7 +452,7 @@ class RetryProcessingServiceTest {
     void nullArgumentsRejected() {
         assertThrows(NullPointerException.class, () -> service.process(null, NOW));
         assertThrows(NullPointerException.class, () -> service.process(delivery.id(), null));
-        verifyNoInteractions(deliveryPort, fencingPort, attemptPort, retryPolicy, finalizationService);
+        verifyNoInteractions(deliveryPort, fencingPort, attemptPort, retryPolicy, completionService);
     }
 
     @Test
@@ -425,6 +465,6 @@ class RetryProcessingServiceTest {
                     assertFalse(name.contains("smtp"), "Service must not contain " + name);
                     assertFalse(name.contains("sms"), "Service must not contain " + name);
                 });
-        verifyNoMoreInteractions(deliveryPort, fencingPort, attemptPort, retryPolicy, finalizationService);
+        verifyNoMoreInteractions(deliveryPort, fencingPort, attemptPort, retryPolicy, completionService);
     }
 }

@@ -52,6 +52,7 @@ Notification Engine отвечает
 * [ADR-011 — Notification Channels and Extensible Delivery](<adr/ADR-011-Notification Channels and Extensible Delivery.md>)
 * [ADR-012 — Retry and Delivery Attempt Processing](<adr/ADR-012-Retry and Delivery Attempt Processing.md>)
 * [ADR-013 — Retry Policy, Fencing and Recovery](<adr/ADR-013 — Retry Policy, Fencing and Recovery.md>)
+* [ADR-014 — Concurrent Notification Finalization](<adr/ADR-014 — Concurrent Notification Finalization.md>)
 
 ---
 
@@ -186,12 +187,15 @@ Notification
 После успешного `Match`
 Application:
 
-1. проверяет наличие `Notification`
-   для пары `Subscription + PowerOutage`;
+1. атомарно получает canonical `Notification`
+   для пары `Subscription + PowerOutage`
+   (get-or-create);
 2. формирует текст `Notification`;
 3. создаёт `Notification`
    со статусом `PENDING`;
-4. сохраняет `Notification`.
+4. сохраняет `Notification`;
+5. передаёт созданный `Notification`
+   в `NotificationEngine`.
 
 Формирование текста
 не является ответственностью
@@ -204,16 +208,11 @@ Notification Engine.
 Notification Engine отвечает за:
 
 * обработку готового `Notification`;
-* работу с доступными каналами;
-* создание и обработку `NotificationDelivery`;
-* координацию доставки;
-* передачу сообщения Delivery Adapter;
-* обработку результата доставки;
-* Retry Processing;
-* применение Retry Policy;
-* координацию `DeliveryAttempt`;
-* завершение конкретной NotificationDelivery;
-* инициирование финализации Notification после успешного fenced-завершения NotificationDelivery.
+* получение включённых `NotificationChannel`;
+* создание отдельной `NotificationDelivery`
+  для каждого включённого канала;
+* передачу `NotificationDelivery`
+  в Retry Processing.
 
 Notification Engine не отвечает за:
 
@@ -1186,6 +1185,11 @@ fenced final state update
 ↓
 Notification finalization
 
+Fenced completion `NotificationDelivery`
+и финализация `Notification`
+выполняются в одной короткой
+транзакции базы данных.
+
 Если fenced update не выполнен, данный worker
 не имеет права инициировать финализацию.
 
@@ -1804,6 +1808,8 @@ claim
 → result
 → Retry Policy
 → next state
+→ fenced completion
+→ finalization
 ```
 
 ---
@@ -2087,6 +2093,7 @@ Retry lifecycle
 * [ADR-011 — Notification Channels and Extensible Delivery](<adr/ADR-011-Notification Channels and Extensible Delivery.md>)
 * [ADR-012 — Retry and Delivery Attempt Processing](<adr/ADR-012-Retry and Delivery Attempt Processing.md>)
 * [ADR-013 — Retry Policy, Fencing and Recovery](<adr/ADR-013 — Retry Policy, Fencing and Recovery.md>)
+* [ADR-014 — Concurrent Notification Finalization](<adr/ADR-014 — Concurrent Notification Finalization.md>)
 
 ---
 

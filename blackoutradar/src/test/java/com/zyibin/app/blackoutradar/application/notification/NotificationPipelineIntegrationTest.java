@@ -310,6 +310,40 @@ class NotificationPipelineIntegrationTest {
     }
 
     @Test
+    void parallelMixedCompletionFinalizesFailed() throws Exception {
+        stubSuccess();
+        Fixture fixture = savePendingNotificationWithChannels(
+                List.of("test-pipeline", "unregistered-channel"));
+        Notification claimed = notificationPort.claimForProcessing(fixture.notification().id()).orElseThrow();
+        NotificationDelivery first = saveDelivery(claimed, fixture.channels().get(0));
+        NotificationDelivery second = saveDelivery(claimed, fixture.channels().get(1));
+        Instant now = Instant.now();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            Future<DeliveryProcessingOutcome> firstDone =
+                    executor.submit(() -> processAfterStart(first.id(), now, start));
+            Future<DeliveryProcessingOutcome> secondDone =
+                    executor.submit(() -> processAfterStart(second.id(), now, start));
+            start.countDown();
+
+            assertTrue(firstDone.get(30, TimeUnit.SECONDS).fencedCompletion());
+            assertTrue(secondDone.get(30, TimeUnit.SECONDS).fencedCompletion());
+
+            assertEquals(NotificationStatus.FAILED,
+                    notificationPort.findById(fixture.notification().id()).orElseThrow().status());
+            assertEquals(DeliveryStatus.SENT,
+                    deliveryPort.findById(first.id()).orElseThrow().status());
+            assertEquals(DeliveryStatus.FAILED,
+                    deliveryPort.findById(second.id()).orElseThrow().status());
+            assertEquals(1, stubAdapter.deliveries.get());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void lostNotificationClaimReturnsCurrentState() {
         stubSuccess();
         Fixture fixture = savePendingNotificationWithChannels(List.of("test-pipeline"));

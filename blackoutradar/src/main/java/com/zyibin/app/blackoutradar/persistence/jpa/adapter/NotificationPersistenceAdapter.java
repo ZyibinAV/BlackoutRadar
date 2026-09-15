@@ -1,6 +1,7 @@
 package com.zyibin.app.blackoutradar.persistence.jpa.adapter;
 
 import com.zyibin.app.blackoutradar.domain.notification.Notification;
+import com.zyibin.app.blackoutradar.domain.notification.NotificationCreation;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationPort;
 import com.zyibin.app.blackoutradar.domain.subscription.TransformerStation;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutageAddress;
@@ -18,6 +19,8 @@ import com.zyibin.app.blackoutradar.persistence.jpa.repository.SubscriptionJpaRe
 import com.zyibin.app.blackoutradar.persistence.jpa.repository.SubscriptionTransformerStationJpaRepository;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -97,6 +100,27 @@ public class NotificationPersistenceAdapter implements NotificationPort {
     @Transactional
     public Optional<Notification> lockById(UUID id) {
         return repository.findByIdForUpdate(id).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public NotificationCreation findOrCreate(Notification notification) {
+        Objects.requireNonNull(notification, "notification must not be null");
+        int inserted = repository.insertIgnore(notification.id(),
+                notification.subscription().id(), notification.powerOutage().id(),
+                notification.message(), notification.status().name());
+        if (inserted == 1) {
+            Notification created = findById(notification.id())
+                    .orElseThrow(() -> new NoSuchElementException(
+                            "Notification not found: " + notification.id()));
+            return new NotificationCreation(created, true);
+        }
+        Notification existing = findBySubscriptionAndPowerOutage(
+                notification.subscription().id(), notification.powerOutage().id())
+                .orElseThrow(() -> new NoSuchElementException(
+                        "Notification not found for subscription " + notification.subscription().id()
+                                + " and power outage " + notification.powerOutage().id()));
+        return new NotificationCreation(existing, false);
     }
 
     private Notification toDomain(NotificationEntity entity) {

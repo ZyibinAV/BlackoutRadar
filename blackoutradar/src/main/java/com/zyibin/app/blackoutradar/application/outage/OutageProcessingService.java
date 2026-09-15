@@ -8,6 +8,7 @@ import com.zyibin.app.blackoutradar.domain.address.Address;
 import com.zyibin.app.blackoutradar.domain.matching.Match;
 import com.zyibin.app.blackoutradar.domain.matching.MatchingEngine;
 import com.zyibin.app.blackoutradar.domain.notification.Notification;
+import com.zyibin.app.blackoutradar.domain.notification.NotificationCreation;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationPort;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutage;
 import com.zyibin.app.blackoutradar.domain.subscription.Subscription;
@@ -56,16 +57,13 @@ public class OutageProcessingService {
                 .toList();
         List<Match> matches = matchingEngine.match(powerOutage, subscriptions);
         for (Match match : matches) {
-            UUID subscriptionId = match.subscription().id();
-            UUID powerOutageId = match.powerOutage().id();
-            if (notificationPort.findBySubscriptionAndPowerOutage(subscriptionId, powerOutageId).isPresent()) {
-                continue;
-            }
             String message = notificationMessageFactory.createMessage(match.powerOutage());
             Notification notification = Notification.of(UUID.randomUUID(),
                     match.subscription(), match.powerOutage(), message);
-            Notification saved = notificationPort.save(notification);
-            notificationEngine.process(saved.id());
+            NotificationCreation creation = notificationPort.findOrCreate(notification);
+            if (creation.created()) {
+                notificationEngine.process(creation.notification().id());
+            }
         }
         return matches;
     }

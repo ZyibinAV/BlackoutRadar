@@ -34,6 +34,7 @@ import com.zyibin.app.blackoutradar.domain.identity.UserRole;
 import com.zyibin.app.blackoutradar.domain.matching.Match;
 import com.zyibin.app.blackoutradar.domain.matching.MatchingEngine;
 import com.zyibin.app.blackoutradar.domain.notification.Notification;
+import com.zyibin.app.blackoutradar.domain.notification.NotificationCreation;
 import com.zyibin.app.blackoutradar.domain.notification.NotificationStatus;
 import com.zyibin.app.blackoutradar.domain.notification.port.NotificationPort;
 import com.zyibin.app.blackoutradar.domain.outage.PowerOutage;
@@ -104,11 +105,12 @@ class OutageProcessingServiceTest {
     }
 
     private void stubNotificationSaving() {
-        when(notificationPort.findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id()))
-                .thenReturn(Optional.empty());
         when(notificationMessageFactory.createMessage(same(powerOutage))).thenReturn(MESSAGE);
-        when(notificationPort.save(any(Notification.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationPort.findOrCreate(any(Notification.class)))
+                .thenAnswer(invocation -> {
+                    Notification notification = invocation.getArgument(0);
+                    return new NotificationCreation(notification, true);
+                });
     }
 
     @Test
@@ -134,9 +136,8 @@ class OutageProcessingServiceTest {
         inOrder.verify(duplicateResolver).resolve(parsedOutage, canonical);
         inOrder.verify(candidateFinder).findCandidates(same(powerOutage));
         inOrder.verify(matchingEngine).match(same(powerOutage), eq(List.of(subscription1)));
-        inOrder.verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
         inOrder.verify(notificationMessageFactory).createMessage(same(powerOutage));
-        inOrder.verify(notificationPort).save(any(Notification.class));
+        inOrder.verify(notificationPort).findOrCreate(any(Notification.class));
         inOrder.verify(notificationEngine).process(any(UUID.class));
         verifyNoMoreInteractions(parsedOutageProcessor, duplicateResolver, candidateFinder,
                 matchingEngine, notificationMessageFactory, notificationPort, notificationEngine);
@@ -179,14 +180,14 @@ class OutageProcessingServiceTest {
 
         assertSame(matches, result);
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationPort, times(1)).save(captor.capture());
+        verify(notificationPort, times(1)).findOrCreate(captor.capture());
         Notification saved = captor.getValue();
         assertSame(subscription1, saved.subscription());
         assertSame(powerOutage, saved.powerOutage());
         assertEquals(NotificationStatus.PENDING, saved.status());
         assertEquals(MESSAGE, saved.message());
         verify(notificationEngine).process(saved.id());
-        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
+        verify(notificationPort, times(0)).save(any(Notification.class));
     }
 
     @Test
@@ -205,12 +206,12 @@ class OutageProcessingServiceTest {
         service.process(parsedOutage);
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationPort, times(1)).save(captor.capture());
+        verify(notificationPort, times(1)).findOrCreate(captor.capture());
         verify(notificationEngine, times(1)).process(captor.getValue().id());
     }
 
     @Test
-    void existingNotificationSkipsCreationAndSave() {
+    void existingNotificationSkipsEngine() {
         List<Address> canonical = List.of(address1);
         DuplicateResolver.ResolutionResult resolution =
                 new DuplicateResolver.ResolutionResult(DuplicateResolver.Decision.CREATE, powerOutage);
@@ -221,14 +222,15 @@ class OutageProcessingServiceTest {
         when(duplicateResolver.resolve(parsedOutage, canonical)).thenReturn(resolution);
         when(candidateFinder.findCandidates(same(powerOutage))).thenReturn(List.of(new Candidate(subscription1)));
         when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1)))).thenReturn(matches);
-        when(notificationPort.findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id()))
-                .thenReturn(Optional.of(existing));
+        when(notificationMessageFactory.createMessage(same(powerOutage))).thenReturn(MESSAGE);
+        when(notificationPort.findOrCreate(any(Notification.class)))
+                .thenReturn(new NotificationCreation(existing, false));
 
         List<Match> result = service.process(parsedOutage);
 
         assertSame(matches, result);
-        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
-        verifyNoInteractions(notificationMessageFactory, notificationEngine);
+        verify(notificationPort).findOrCreate(any(Notification.class));
+        verifyNoInteractions(notificationEngine);
         verify(notificationPort, times(0)).save(any(Notification.class));
         verifyNoMoreInteractions(notificationPort);
     }
@@ -249,22 +251,23 @@ class OutageProcessingServiceTest {
                 List.of(new Candidate(subscription1), new Candidate(subscription2)));
         when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1, subscription2))))
                 .thenReturn(matches);
-        when(notificationPort.findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id()))
-                .thenReturn(Optional.of(existing));
-        when(notificationPort.findBySubscriptionAndPowerOutage(subscription2.id(), powerOutage.id()))
-                .thenReturn(Optional.empty());
         when(notificationMessageFactory.createMessage(same(powerOutage))).thenReturn(MESSAGE);
-        when(notificationPort.save(any(Notification.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationPort.findOrCreate(any(Notification.class)))
+                .thenAnswer(invocation -> {
+                    Notification candidate = invocation.getArgument(0);
+                    if (candidate.subscription().id().equals(subscription1.id())) {
+                        return new NotificationCreation(existing, false);
+                    }
+                    return new NotificationCreation(candidate, true);
+                });
 
         List<Match> result = service.process(parsedOutage);
 
         assertSame(matches, result);
-        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription1.id(), powerOutage.id());
-        verify(notificationPort).findBySubscriptionAndPowerOutage(subscription2.id(), powerOutage.id());
+        verify(notificationPort, times(2)).findOrCreate(any(Notification.class));
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationPort, times(1)).save(captor.capture());
-        Notification saved = captor.getValue();
+        verify(notificationPort, times(2)).findOrCreate(captor.capture());
+        Notification saved = captor.getAllValues().get(1);
         assertSame(subscription2, saved.subscription());
         assertSame(powerOutage, saved.powerOutage());
         assertEquals(NotificationStatus.PENDING, saved.status());
@@ -288,14 +291,12 @@ class OutageProcessingServiceTest {
         when(matchingEngine.match(same(powerOutage), eq(List.of(subscription1, subscription2))))
                 .thenReturn(matches);
         stubNotificationSaving();
-        when(notificationPort.findBySubscriptionAndPowerOutage(subscription2.id(), powerOutage.id()))
-                .thenReturn(Optional.empty());
 
         List<Match> result = service.process(parsedOutage);
 
         assertSame(matches, result);
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationPort, times(2)).save(captor.capture());
+        verify(notificationPort, times(2)).findOrCreate(captor.capture());
         List<Notification> saved = captor.getAllValues();
         assertEquals(2, saved.size());
         assertSame(subscription1, saved.get(0).subscription());

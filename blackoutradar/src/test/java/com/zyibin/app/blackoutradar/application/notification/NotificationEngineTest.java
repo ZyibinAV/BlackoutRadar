@@ -38,8 +38,9 @@ import com.zyibin.app.blackoutradar.domain.outage.Source;
 import com.zyibin.app.blackoutradar.domain.subscription.Subscription;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Modifier;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -288,6 +289,34 @@ class NotificationEngineTest {
         assertThrows(NoSuchElementException.class, () -> engine.process(id));
         verifyNoInteractions(channelPort, deliveryPort, retryProcessingService, finalizationService);
         verify(notificationPort, never()).save(any(Notification.class));
+    }
+
+    @Test
+    void processingTimestampComesFromClock() {
+        Instant fixedNow = Instant.parse("2026-02-02T00:00:00Z");
+        NotificationEngine clocked = new NotificationEngine(notificationPort, channelPort,
+                deliveryPort, retryProcessingService, finalizationService,
+                Clock.fixed(fixedNow, ZoneOffset.UTC));
+        NotificationChannel email = channel("email", "personal@example.com", true);
+        stubSuccessfulClaim();
+        when(channelPort.findByUserId(user.id())).thenReturn(List.of(email));
+        stubDeliverySaving();
+        stubSuccessfulRetry();
+        when(notificationPort.findById(pending.id()))
+                .thenReturn(Optional.of(pending.startProcessing().markSent()));
+
+        clocked.process(pending.id());
+
+        ArgumentCaptor<NotificationDelivery> saveCaptor = ArgumentCaptor.forClass(NotificationDelivery.class);
+        verify(deliveryPort, times(1)).save(saveCaptor.capture());
+        verify(retryProcessingService, times(1))
+                .process(eq(saveCaptor.getValue().id()), eq(fixedNow));
+    }
+
+    @Test
+    void nullClockRejected() {
+        assertThrows(NullPointerException.class, () -> new NotificationEngine(notificationPort,
+                channelPort, deliveryPort, retryProcessingService, finalizationService, null));
     }
 
     @Test

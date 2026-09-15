@@ -512,7 +512,9 @@ Notification Domain.
 FAILED Notification
 не создаёт новый Notification.
 
-Возможный flow:
+Исходный flow
+(исторический контекст;
+актуальная модель — ниже):
 
 FAILED
 
@@ -527,6 +529,15 @@ PROCESSING
 ↓
 
 SENT
+
+В актуальной архитектуре
+единицей Retry является
+NotificationDelivery,
+а не FAILED Notification:
+повтор выполняется как
+PROCESSING → READY + nextAttemptAt
+конкретной доставки
+(ADR-012, ADR-013).
 
 Конкретные:
 
@@ -1270,8 +1281,8 @@ Retry state не переносится
 - [ADR-005 — PowerOutage Event Model](ADR-005-PowerOutage-Event-Model.md)
 - [ADR-006 — Matching Engine](ADR-006-Matching-Engine.md)
 - [ADR-007 — Replaceable Infrastructure](ADR-007-Replaceable-Infrastructure.md)
-- [ADR-011 — Notification Channels and Extensible Delivery](ADR-011 — Notification Channels and Extensible Delivery.md)
-- [ADR-012 — Retry and Delivery Attempt Processing](ADR-012 — Retry and Delivery Attempt Processing.md)
+- [ADR-011 — Notification Channels and Extensible Delivery](<ADR-011-Notification Channels and Extensible Delivery.md>)
+- [ADR-012 — Retry and Delivery Attempt Processing](<ADR-012-Retry and Delivery Attempt Processing.md>)
 - [ADR-013 — Retry Policy, Fencing and Recovery](ADR-013 — Retry Policy, Fencing and Recovery.md)
 - [ADR-014 — Concurrent Notification Finalization](ADR-014 — Concurrent Notification Finalization.md)
 
