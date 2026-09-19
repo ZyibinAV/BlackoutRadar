@@ -17,6 +17,8 @@ package "Spring Boot Application" {
 
     [Matching Engine]
 
+    [Application / Processing Flow]
+
     [Notification Engine]
 
     [Retry Processing]
@@ -41,13 +43,17 @@ queue Telegram
 
 [Parser] --> [Matching Engine]
 
-[Matching Engine] --> [Notification Engine]
+[Matching Engine] --> [Application / Processing Flow]
+
+[Application / Processing Flow] --> [Notification Engine]
 
 [REST API] --> PostgreSQL
 
 [Parser] --> PostgreSQL
 
 [Matching Engine] --> PostgreSQL
+
+[Application / Processing Flow] --> PostgreSQL
 
 [Notification Engine] --> PostgreSQL
 

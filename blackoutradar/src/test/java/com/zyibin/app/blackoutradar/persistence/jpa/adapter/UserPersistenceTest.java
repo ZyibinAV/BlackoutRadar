@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zyibin.app.blackoutradar.domain.identity.RegistrationResult;
 import com.zyibin.app.blackoutradar.domain.identity.User;
 import com.zyibin.app.blackoutradar.domain.identity.UserRole;
 import com.zyibin.app.blackoutradar.domain.identity.port.UserPort;
@@ -95,5 +96,49 @@ class UserPersistenceTest {
 
         UserEntity persisted = userRepository.findById(id).orElseThrow();
         assertEquals("bcrypt-hash", persisted.getPasswordHash());
+    }
+
+    @Test
+    void registerCreatesUserWithPasswordHash() {
+        UUID id = UUID.randomUUID();
+        User user = User.of(id, "new@example.com", UserRole.USER, true);
+
+        RegistrationResult result = userPort.register(user, "encoded-hash");
+
+        assertEquals(RegistrationResult.CREATED, result);
+        assertTrue(userPort.findByEmail("new@example.com").isPresent());
+        assertEquals(Optional.of("encoded-hash"), userPort.findPasswordHash(id));
+        UserEntity persisted = userRepository.findById(id).orElseThrow();
+        assertEquals("encoded-hash", persisted.getPasswordHash());
+        assertEquals("new@example.com", persisted.getEmail());
+    }
+
+    @Test
+    void registerExistingEmailReturnsAlreadyExistsAndKeepsOriginal() {
+        User first = User.of(UUID.randomUUID(), "taken@example.com", UserRole.USER, true);
+        assertEquals(RegistrationResult.CREATED, userPort.register(first, "first-hash"));
+
+        User second = User.of(UUID.randomUUID(), "taken@example.com", UserRole.USER, true);
+        RegistrationResult result = userPort.register(second, "second-hash");
+
+        assertEquals(RegistrationResult.ALREADY_EXISTS, result);
+        UserEntity persisted = userRepository.findByEmail("taken@example.com").orElseThrow();
+        assertEquals(first.id(), persisted.getId());
+        assertEquals("first-hash", persisted.getPasswordHash());
+    }
+
+    @Test
+    void findPasswordHashEmptyWhenAbsent() {
+        assertTrue(userPort.findPasswordHash(UUID.randomUUID()).isEmpty());
+        User saved = userPort.save(User.of(UUID.randomUUID(), "plain@example.com", UserRole.USER, true));
+        assertTrue(userPort.findPasswordHash(saved.id()).isEmpty());
+    }
+
+    @Test
+    void registerNullArgumentsRejected() {
+        User user = User.of(UUID.randomUUID(), "new@example.com", UserRole.USER, true);
+        assertThrows(NullPointerException.class, () -> userPort.register(null, "hash"));
+        assertThrows(NullPointerException.class, () -> userPort.register(user, null));
+        assertThrows(NullPointerException.class, () -> userPort.findPasswordHash(null));
     }
 }

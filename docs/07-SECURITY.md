@@ -102,6 +102,145 @@ Business Domain Model.
 
 ---
 
+## Local Authentication
+
+Local Authentication является Security responsibility.
+
+Первый поддерживаемый способ:
+Email + Password.
+
+Authentication не изменяет Business Domain Model.
+
+### Registration
+
+Регистрация выполняется через Application / Security boundary.
+
+Flow:
+
+raw password
+↓
+PasswordEncoder
+↓
+passwordHash
+↓
+UserPort.register(...)
+↓
+atomic persistence
+↓
+User + local password credential
+
+Raw password:
+
+- не передается в Domain;
+- не передается в Persistence;
+- не хранится;
+- не логируется;
+- не возвращается API.
+
+`passwordHash` не является частью Domain `User`.
+
+Для регистрации используется отдельная операция
+`UserPort.register(...)`.
+
+Она атомарно создает пользователя
+и его локальные credentials.
+
+Конкурентная регистрация
+с одинаковым email
+защищается Database unique constraint.
+
+Database является окончательной
+границей конкурентной корректности.
+
+Обычный `UserPort.save(User)`
+не используется как замена
+операции локальной регистрации.
+
+Результаты регистрации:
+
+- CREATED;
+- ALREADY_EXISTS.
+
+`ALREADY_EXISTS` является нормальным
+результатом конкурентной регистрации,
+а не механизмом синхронизации через exception.
+
+### Password Verification
+
+При входе AuthenticationProvider
+получает:
+
+- User через `UserPort.findByEmail(...)`;
+- passwordHash через `UserPort.findPasswordHash(...)`.
+
+Проверка выполняется через
+`PasswordEncoder.matches(...)`.
+
+`passwordHash` не добавляется
+в Domain `User`.
+
+### Login
+
+Flow:
+
+email + password
+↓
+AuthenticationManager
+↓
+AuthenticationProvider
+↓
+UserPort
+↓
+PasswordEncoder.matches(...)
+↓
+Authentication
+↓
+SecurityContext
+
+AuthenticationProvider:
+
+- проверяет наличие пользователя;
+- проверяет возможность аутентификации
+  активной учетной записи;
+- проверяет password;
+- создает успешный Authentication
+  либо сообщает об ошибке.
+
+Неуспешная authentication
+не должна раскрывать,
+существует ли указанный email.
+
+### Security Representation
+
+Spring Security representation
+пользователя находится
+за пределами Domain Layer.
+
+Domain `User`:
+
+- не реализует `UserDetails`;
+- не зависит от Spring Security;
+- не содержит Authentication;
+- не содержит SecurityContext;
+- не содержит passwordHash.
+
+SecurityContext является
+частью Security infrastructure.
+
+### Transaction Boundary
+
+Registration выполняется
+в рамках Application transaction boundary.
+
+Создание User и passwordHash
+должно быть одной атомарной
+persistence operation.
+
+Login не изменяет
+Business Domain Model.
+
+---
+
 # Authorization
 
 Authorization определяет,
@@ -493,6 +632,18 @@ Notification Delivery и Retry Processing не должны раскрывать
 9. Security не должна изменять
    Domain Model без отдельного
    архитектурного решения.
+10. Domain User не содержит passwordHash.
+11. Domain User не реализует UserDetails.
+12. Local password hashing выполняется через PasswordEncoder.
+13. Raw password не передается в Persistence.
+14. Registration User + passwordHash выполняется атомарно.
+15. Concurrent registration защищается Database unique constraint.
+16. UserPort.register(...) является отдельной операцией регистрации.
+17. UserPort.findPasswordHash(...) предоставляет credential data
+    без добавления passwordHash в Domain User.
+18. Authentication использует стандартный Spring Security flow.
+19. AuthenticationProvider находится за пределами Domain Layer.
+20. SecurityContext не является частью Business Domain Model.
 
 ---
 

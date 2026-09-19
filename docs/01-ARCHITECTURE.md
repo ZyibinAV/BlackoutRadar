@@ -275,12 +275,24 @@ Notification
 
 После успешного Match
 Application / Processing Flow
-создает Notification.
+создает объект Notification.
 
-Перед созданием Notification
-Application проверяет,
-существует ли Notification
-для пары Subscription + PowerOutage.
+Созданный объект передается
+в атомарную операцию:
+
+NotificationPort.findOrCreate(Notification)
+
+Persistence возвращает:
+
+- новый Notification,
+  если запись была создана;
+- существующий canonical Notification,
+  если запись уже существует.
+
+Application / Processing Flow
+запускает Notification Engine
+только для вновь созданного
+Notification.
 
 Существующий Notification
 не создается повторно.
@@ -626,6 +638,60 @@ Adapter не содержит
 - Telegram;
 - Scheduler;
 - Delivery Adapters.
+
+## Security
+
+Security является отдельной
+архитектурной ответственностью.
+
+Security находится
+за пределами Business Domain Model.
+
+Local Authentication
+использует:
+
+Application / Security
+↓
+Authentication
+↓
+Infrastructure / Spring Security
+
+Для локальной регистрации:
+
+Registration
+↓
+PasswordEncoder
+↓
+passwordHash
+↓
+UserPort.register(...)
+↓
+Persistence
+↓
+PostgreSQL
+
+Для входа:
+
+AuthenticationManager
+↓
+AuthenticationProvider
+↓
+UserPort
+↓
+PasswordEncoder
+↓
+Authentication
+↓
+SecurityContext
+
+Domain User не содержит
+passwordHash и не зависит
+от Spring Security.
+
+JWT, Refresh Token,
+Authorization и OAuth2
+реализуются отдельными
+последующими этапами Security.
 
 Подробнее:
 

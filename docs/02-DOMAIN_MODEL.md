@@ -736,6 +736,13 @@ Security concepts
 - OAuth2 Client;
 - Password Security.
 
+Local password credentials
+не являются частью Domain User.
+
+`passwordHash` является
+Security/Persistence data
+и не входит в Domain User.
+
 В частности:
 
 > Refresh Token не является Domain Entity.
