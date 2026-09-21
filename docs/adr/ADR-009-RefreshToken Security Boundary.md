@@ -1,4 +1,4 @@
-# ADR-009 — RefreshToken Security Boundary
+# ADR-009 вЂ” RefreshToken Security Boundary
 
 **Status:** Accepted
 
@@ -8,54 +8,54 @@
 
 # Context
 
-В первоначальной Domain Model
-RefreshToken был определен
-как Domain Entity
-в рамках TASK 6 — Identity and Subscription Domain.
+Р’ РїРµСЂРІРѕРЅР°С‡Р°Р»СЊРЅРѕР№ Domain Model
+RefreshToken Р±С‹Р» РѕРїСЂРµРґРµР»РµРЅ
+РєР°Рє Domain Entity
+РІ СЂР°РјРєР°С… TASK 6 вЂ” Identity and Subscription Domain.
 
-RefreshToken содержал:
+RefreshToken СЃРѕРґРµСЂР¶Р°Р»:
 
 - UUID identity;
 - User;
 - expiresAt;
 - revokedAt.
 
-Также были определены
-операции lifecycle:
+РўР°РєР¶Рµ Р±С‹Р»Рё РѕРїСЂРµРґРµР»РµРЅС‹
+РѕРїРµСЂР°С†РёРё lifecycle:
 
 - expiration;
 - revocation;
 - usability.
 
-При подготовке TASK 10 —
-Identity and Subscription Persistence —
-было проведено повторное архитектурное
-исследование ответственности RefreshToken.
+РџСЂРё РїРѕРґРіРѕС‚РѕРІРєРµ TASK 10 вЂ”
+Identity and Subscription Persistence вЂ”
+Р±С‹Р»Рѕ РїСЂРѕРІРµРґРµРЅРѕ РїРѕРІС‚РѕСЂРЅРѕРµ Р°СЂС…РёС‚РµРєС‚СѓСЂРЅРѕРµ
+РёСЃСЃР»РµРґРѕРІР°РЅРёРµ РѕС‚РІРµС‚СЃС‚РІРµРЅРЅРѕСЃС‚Рё RefreshToken.
 
 ---
 
 # Problem
 
-Необходимо определить,
-является ли RefreshToken
-частью Business Domain Model
-или Security/Application concern.
+РќРµРѕР±С…РѕРґРёРјРѕ РѕРїСЂРµРґРµР»РёС‚СЊ,
+СЏРІР»СЏРµС‚СЃСЏ Р»Рё RefreshToken
+С‡Р°СЃС‚СЊСЋ Business Domain Model
+РёР»Рё Security/Application concern.
 
-Основной критерий:
+РћСЃРЅРѕРІРЅРѕР№ РєСЂРёС‚РµСЂРёР№:
 
-> Имеет ли RefreshToken самостоятельное
-> бизнесовое значение в предметной области
-> BlackoutRadar независимо от authentication?
+> РРјРµРµС‚ Р»Рё RefreshToken СЃР°РјРѕСЃС‚РѕСЏС‚РµР»СЊРЅРѕРµ
+> Р±РёР·РЅРµСЃРѕРІРѕРµ Р·РЅР°С‡РµРЅРёРµ РІ РїСЂРµРґРјРµС‚РЅРѕР№ РѕР±Р»Р°СЃС‚Рё
+> BlackoutRadar РЅРµР·Р°РІРёСЃРёРјРѕ РѕС‚ authentication?
 
 ---
 
 # Analysis
 
-RefreshToken используется
-для продолжения authentication session
-и получения нового Access Token.
+RefreshToken РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ
+РґР»СЏ РїСЂРѕРґРѕР»Р¶РµРЅРёСЏ authentication session
+Рё РїРѕР»СѓС‡РµРЅРёСЏ РЅРѕРІРѕРіРѕ Access Token.
 
-Его lifecycle включает:
+Р•РіРѕ lifecycle РІРєР»СЋС‡Р°РµС‚:
 
 - issuance;
 - expiration;
@@ -63,11 +63,11 @@ RefreshToken используется
 - rotation;
 - validation.
 
-Эти операции относятся
-к authentication/security.
+Р­С‚Рё РѕРїРµСЂР°С†РёРё РѕС‚РЅРѕСЃСЏС‚СЃСЏ
+Рє authentication/security.
 
-RefreshToken не участвует
-непосредственно в бизнес-процессах:
+RefreshToken РЅРµ СѓС‡Р°СЃС‚РІСѓРµС‚
+РЅРµРїРѕСЃСЂРµРґСЃС‚РІРµРЅРЅРѕ РІ Р±РёР·РЅРµСЃ-РїСЂРѕС†РµСЃСЃР°С…:
 
 - Address;
 - Subscription;
@@ -77,35 +77,35 @@ RefreshToken не участвует
 - Notification;
 - Outage Processing.
 
-Нет бизнесового правила,
-в котором RefreshToken является
-частью предметной логики BlackoutRadar.
+РќРµС‚ Р±РёР·РЅРµСЃРѕРІРѕРіРѕ РїСЂР°РІРёР»Р°,
+РІ РєРѕС‚РѕСЂРѕРј RefreshToken СЏРІР»СЏРµС‚СЃСЏ
+С‡Р°СЃС‚СЊСЋ РїСЂРµРґРјРµС‚РЅРѕР№ Р»РѕРіРёРєРё BlackoutRadar.
 
 ---
 
 # Decision
 
-`RefreshToken` **не является
-частью Business Domain Model**.
+`RefreshToken` **РЅРµ СЏРІР»СЏРµС‚СЃСЏ
+С‡Р°СЃС‚СЊСЋ Business Domain Model**.
 
-RefreshToken относится
-к Security/Application boundary.
+RefreshToken РѕС‚РЅРѕСЃРёС‚СЃСЏ
+Рє Security/Application boundary.
 
-RefreshToken должен быть реализован
-в Security Phase.
+RefreshToken РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СЂРµР°Р»РёР·РѕРІР°РЅ
+РІ Security Phase.
 
-В частности:
+Р’ С‡Р°СЃС‚РЅРѕСЃС‚Рё:
 
-- RefreshToken не является Domain Entity;
-- RefreshToken не находится
-  в domain.identity;
-- RefreshToken lifecycle является
+- RefreshToken РЅРµ СЏРІР»СЏРµС‚СЃСЏ Domain Entity;
+- RefreshToken РЅРµ РЅР°С…РѕРґРёС‚СЃСЏ
+  РІ domain.identity;
+- RefreshToken lifecycle СЏРІР»СЏРµС‚СЃСЏ
   Security responsibility;
-- token storage является
+- token storage СЏРІР»СЏРµС‚СЃСЏ
   Security/Persistence responsibility;
-- token hashing является
+- token hashing СЏРІР»СЏРµС‚СЃСЏ
   Security responsibility;
-- token rotation является
+- token rotation СЏРІР»СЏРµС‚СЃСЏ
   Security responsibility.
 
 ---
@@ -113,7 +113,7 @@ RefreshToken должен быть реализован
 # Domain Boundary
 
 Business Domain Model
-не содержит:
+РЅРµ СЃРѕРґРµСЂР¶РёС‚:
 
 - RefreshToken Entity;
 - raw refresh token;
@@ -122,14 +122,14 @@ Business Domain Model
 - token revocation state;
 - token rotation state.
 
-Domain Model также не содержит
+Domain Model С‚Р°РєР¶Рµ РЅРµ СЃРѕРґРµСЂР¶РёС‚
 RefreshToken-specific Port.
 
 ---
 
 # Security Boundary
 
-Security владеет:
+Security РІР»Р°РґРµРµС‚:
 
 - Refresh Token lifecycle;
 - Access Token lifecycle;
@@ -139,21 +139,21 @@ Security владеет:
 - token revocation;
 - token rotation.
 
-Конкретная реализация выполняется
-в Security Phase.
+РљРѕРЅРєСЂРµС‚РЅР°СЏ СЂРµР°Р»РёР·Р°С†РёСЏ РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ
+РІ Security Phase.
 
 ---
 
 # Persistence Boundary
 
-Физическое хранение Refresh Token
-остается частью Persistence Model.
+Р¤РёР·РёС‡РµСЃРєРѕРµ С…СЂР°РЅРµРЅРёРµ Refresh Token
+РѕСЃС‚Р°РµС‚СЃСЏ С‡Р°СЃС‚СЊСЋ Persistence Model.
 
-Существующая таблица:
+РЎСѓС‰РµСЃС‚РІСѓСЋС‰Р°СЏ С‚Р°Р±Р»РёС†Р°:
 
 refresh_token
 
-содержит:
+СЃРѕРґРµСЂР¶РёС‚:
 
 - id;
 - user_id;
@@ -163,14 +163,14 @@ refresh_token
 - created_at;
 - updated_at.
 
-Database Model не изменяется
-данным ADR.
+Database Model РЅРµ РёР·РјРµРЅСЏРµС‚СЃСЏ
+РґР°РЅРЅС‹Рј ADR.
 
 Liquibase changesets
-не изменяются данным ADR.
+РЅРµ РёР·РјРµРЅСЏСЋС‚СЃСЏ РґР°РЅРЅС‹Рј ADR.
 
 Refresh Token Persistence
-будет использована будущей
+Р±СѓРґРµС‚ РёСЃРїРѕР»СЊР·РѕРІР°РЅР° Р±СѓРґСѓС‰РµР№
 Security implementation.
 
 ---
@@ -179,16 +179,16 @@ Security implementation.
 
 ## Positive
 
-### 1. Чистый Business Domain
+### 1. Р§РёСЃС‚С‹Р№ Business Domain
 
-Domain Model содержит
-только предметные сущности
+Domain Model СЃРѕРґРµСЂР¶РёС‚
+С‚РѕР»СЊРєРѕ РїСЂРµРґРјРµС‚РЅС‹Рµ СЃСѓС‰РЅРѕСЃС‚Рё
 BlackoutRadar.
 
 Security-specific concepts
-не загрязняют Domain.
+РЅРµ Р·Р°РіСЂСЏР·РЅСЏСЋС‚ Domain.
 
-### 2. Четкое разделение ответственности
+### 2. Р§РµС‚РєРѕРµ СЂР°Р·РґРµР»РµРЅРёРµ РѕС‚РІРµС‚СЃС‚РІРµРЅРЅРѕСЃС‚Рё
 
 Business Domain:
 
@@ -207,65 +207,65 @@ Security:
 - Access Token;
 - Refresh Token.
 
-### 3. Упрощение Persistence
+### 3. РЈРїСЂРѕС‰РµРЅРёРµ Persistence
 
-Не требуется mapping:
+РќРµ С‚СЂРµР±СѓРµС‚СЃСЏ mapping:
 
 Domain RefreshToken
-↔
+в†”
 Persistence RefreshTokenEntity.
 
-Не требуется специальный
+РќРµ С‚СЂРµР±СѓРµС‚СЃСЏ СЃРїРµС†РёР°Р»СЊРЅС‹Р№
 RefreshTokenCredential
-на Domain Port boundary.
+РЅР° Domain Port boundary.
 
 ### 4. Replaceable Security Infrastructure
 
-Конкретный механизм authentication
-может изменяться
-без изменения Business Domain Model.
+РљРѕРЅРєСЂРµС‚РЅС‹Р№ РјРµС…Р°РЅРёР·Рј authentication
+РјРѕР¶РµС‚ РёР·РјРµРЅСЏС‚СЊСЃСЏ
+Р±РµР· РёР·РјРµРЅРµРЅРёСЏ Business Domain Model.
 
-### 5. Отсутствие persistence leakage
+### 5. РћС‚СЃСѓС‚СЃС‚РІРёРµ persistence leakage
 
-`token_hash` остается
-техническим Security/Persistence representation.
+`token_hash` РѕСЃС‚Р°РµС‚СЃСЏ
+С‚РµС…РЅРёС‡РµСЃРєРёРј Security/Persistence representation.
 
 ---
 
 # Negative Consequences
 
-### 1. RefreshToken больше не является Domain Entity
+### 1. RefreshToken Р±РѕР»СЊС€Рµ РЅРµ СЏРІР»СЏРµС‚СЃСЏ Domain Entity
 
-Security lifecycle нельзя реализовывать
-через Domain Entity.
+Security lifecycle РЅРµР»СЊР·СЏ СЂРµР°Р»РёР·РѕРІС‹РІР°С‚СЊ
+С‡РµСЂРµР· Domain Entity.
 
-Lifecycle реализуется
-в Security/Application layer.
+Lifecycle СЂРµР°Р»РёР·СѓРµС‚СЃСЏ
+РІ Security/Application layer.
 
-### 2. Security получает собственную модель
+### 2. Security РїРѕР»СѓС‡Р°РµС‚ СЃРѕР±СЃС‚РІРµРЅРЅСѓСЋ РјРѕРґРµР»СЊ
 
-Security implementation должна иметь
-собственные модели и contracts
-для Refresh Token.
+Security implementation РґРѕР»Р¶РЅР° РёРјРµС‚СЊ
+СЃРѕР±СЃС‚РІРµРЅРЅС‹Рµ РјРѕРґРµР»Рё Рё contracts
+РґР»СЏ Refresh Token.
 
-Это увеличивает локальную сложность
+Р­С‚Рѕ СѓРІРµР»РёС‡РёРІР°РµС‚ Р»РѕРєР°Р»СЊРЅСѓСЋ СЃР»РѕР¶РЅРѕСЃС‚СЊ
 Security subsystem.
 
-### 3. TASK 6 требует архитектурной коррекции
+### 3. TASK 6 С‚СЂРµР±СѓРµС‚ Р°СЂС…РёС‚РµРєС‚СѓСЂРЅРѕР№ РєРѕСЂСЂРµРєС†РёРё
 
-Первоначальное решение TASK 6
-с RefreshToken Domain Entity
-становится устаревшим.
+РџРµСЂРІРѕРЅР°С‡Р°Р»СЊРЅРѕРµ СЂРµС€РµРЅРёРµ TASK 6
+СЃ RefreshToken Domain Entity
+СЃС‚Р°РЅРѕРІРёС‚СЃСЏ СѓСЃС‚Р°СЂРµРІС€РёРј.
 
-История TASK 6 сохраняется
-в TASK_LOG.
+РСЃС‚РѕСЂРёСЏ TASK 6 СЃРѕС…СЂР°РЅСЏРµС‚СЃСЏ
+РІ TASK_LOG.
 
 ---
 
 # Impact on TASK 10
 
-TASK 10 — Identity and Subscription Persistence
-не включает RefreshToken.
+TASK 10 вЂ” Identity and Subscription Persistence
+РЅРµ РІРєР»СЋС‡Р°РµС‚ RefreshToken.
 
 Scope TASK 10:
 
@@ -274,14 +274,14 @@ Scope TASK 10:
 - Subscription.
 
 RefreshToken Persistence
-переносится в Security Phase.
+РїРµСЂРµРЅРѕСЃРёС‚СЃСЏ РІ Security Phase.
 
 ---
 
 # Impact on TASK 30
 
-TASK 30 — JWT and Refresh Token Security
-становится владельцем полной реализации:
+TASK 30 вЂ” JWT and Refresh Token Security
+СЃС‚Р°РЅРѕРІРёС‚СЃСЏ РІР»Р°РґРµР»СЊС†РµРј РїРѕР»РЅРѕР№ СЂРµР°Р»РёР·Р°С†РёРё:
 
 - Access Token;
 - JWT;
@@ -297,12 +297,12 @@ TASK 30 — JWT and Refresh Token Security
 
 # Impact on Database
 
-Database Schema не изменяется.
+Database Schema РЅРµ РёР·РјРµРЅСЏРµС‚СЃСЏ.
 
-Таблица refresh_token
-остается необходимой.
+РўР°Р±Р»РёС†Р° refresh_token
+РѕСЃС‚Р°РµС‚СЃСЏ РЅРµРѕР±С…РѕРґРёРјРѕР№.
 
-Существующие:
+РЎСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ:
 
 - PK;
 - FK;
@@ -310,30 +310,30 @@ Database Schema не изменяется.
 - indexes;
 - timestamps
 
-остаются без изменений.
+РѕСЃС‚Р°СЋС‚СЃСЏ Р±РµР· РёР·РјРµРЅРµРЅРёР№.
 
 ---
 
 # Impact on Liquibase
 
-Liquibase не изменяется.
+Liquibase РЅРµ РёР·РјРµРЅСЏРµС‚СЃСЏ.
 
-Новый changeset
-для удаления Refresh Token
-не требуется.
+РќРѕРІС‹Р№ changeset
+РґР»СЏ СѓРґР°Р»РµРЅРёСЏ Refresh Token
+РЅРµ С‚СЂРµР±СѓРµС‚СЃСЏ.
 
-Новый changeset
-для создания Refresh Token
-не требуется.
+РќРѕРІС‹Р№ changeset
+РґР»СЏ СЃРѕР·РґР°РЅРёСЏ Refresh Token
+РЅРµ С‚СЂРµР±СѓРµС‚СЃСЏ.
 
-Таблица уже существует
-и будет использована Security Phase.
+РўР°Р±Р»РёС†Р° СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚
+Рё Р±СѓРґРµС‚ РёСЃРїРѕР»СЊР·РѕРІР°РЅР° Security Phase.
 
 ---
 
 # Impact on Documentation
 
-Необходимо синхронизировать:
+РќРµРѕР±С…РѕРґРёРјРѕ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ:
 
 - 02-DOMAIN_MODEL.md;
 - 07-SECURITY.md;
@@ -342,7 +342,7 @@ Liquibase не изменяется.
 - 00.5-GLOSSARY.md;
 - Domain Model diagram.
 
-Не требуется изменение:
+РќРµ С‚СЂРµР±СѓРµС‚СЃСЏ РёР·РјРµРЅРµРЅРёРµ:
 
 - Database ER diagram;
 - Security Flow diagram;
@@ -352,70 +352,70 @@ Liquibase не изменяется.
 
 # Alternatives Considered
 
-## Alternative 1 — оставить RefreshToken в Domain
+## Alternative 1 вЂ” РѕСЃС‚Р°РІРёС‚СЊ RefreshToken РІ Domain
 
-Отклонено.
+РћС‚РєР»РѕРЅРµРЅРѕ.
 
-Причина:
+РџСЂРёС‡РёРЅР°:
 
-RefreshToken не имеет
-самостоятельного Business Domain meaning.
+RefreshToken РЅРµ РёРјРµРµС‚
+СЃР°РјРѕСЃС‚РѕСЏС‚РµР»СЊРЅРѕРіРѕ Business Domain meaning.
 
-Его lifecycle является
+Р•РіРѕ lifecycle СЏРІР»СЏРµС‚СЃСЏ
 Security lifecycle.
 
 ---
 
-## Alternative 2 — добавить tokenHash в Domain
+## Alternative 2 вЂ” РґРѕР±Р°РІРёС‚СЊ tokenHash РІ Domain
 
-Отклонено.
+РћС‚РєР»РѕРЅРµРЅРѕ.
 
-Это еще сильнее смешивает
+Р­С‚Рѕ РµС‰Рµ СЃРёР»СЊРЅРµРµ СЃРјРµС€РёРІР°РµС‚
 Business Domain Model
-с Security/Persistence representation.
+СЃ Security/Persistence representation.
 
 ---
 
-## Alternative 3 — оставить RefreshToken
-в Domain, но скрыть tokenHash
+## Alternative 3 вЂ” РѕСЃС‚Р°РІРёС‚СЊ RefreshToken
+РІ Domain, РЅРѕ СЃРєСЂС‹С‚СЊ tokenHash
 
-Отклонено.
+РћС‚РєР»РѕРЅРµРЅРѕ.
 
-Это решает только
+Р­С‚Рѕ СЂРµС€Р°РµС‚ С‚РѕР»СЊРєРѕ
 Persistence mapping problem,
-но не решает проблему
-неправильной архитектурной принадлежности
+РЅРѕ РЅРµ СЂРµС€Р°РµС‚ РїСЂРѕР±Р»РµРјСѓ
+РЅРµРїСЂР°РІРёР»СЊРЅРѕР№ Р°СЂС…РёС‚РµРєС‚СѓСЂРЅРѕР№ РїСЂРёРЅР°РґР»РµР¶РЅРѕСЃС‚Рё
 RefreshToken.
 
 ---
 
-## Alternative 4 — создать RefreshTokenCredential
-в Domain
+## Alternative 4 вЂ” СЃРѕР·РґР°С‚СЊ RefreshTokenCredential
+РІ Domain
 
-Отклонено.
+РћС‚РєР»РѕРЅРµРЅРѕ.
 
-После удаления RefreshToken
-из Domain необходимость
-в такой abstraction исчезает.
+РџРѕСЃР»Рµ СѓРґР°Р»РµРЅРёСЏ RefreshToken
+РёР· Domain РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚СЊ
+РІ С‚Р°РєРѕР№ abstraction РёСЃС‡РµР·Р°РµС‚.
 
-Security layer должен самостоятельно
-определять собственный credential contract.
+Security layer РґРѕР»Р¶РµРЅ СЃР°РјРѕСЃС‚РѕСЏС‚РµР»СЊРЅРѕ
+РѕРїСЂРµРґРµР»СЏС‚СЊ СЃРѕР±СЃС‚РІРµРЅРЅС‹Р№ credential contract.
 
 ---
 
 # Architectural Rules Resulting from ADR
 
-1. RefreshToken не является Domain Entity.
-2. RefreshToken не размещается в domain.identity.
-3. RefreshToken lifecycle является Security concern.
-4. tokenHash не является Domain state.
-5. raw refresh token не является Domain state.
-6. Security infrastructure не проникает в Business Domain.
-7. Database representation может существовать
-   независимо от Domain Entity.
-8. TASK 10 не реализует RefreshToken.
-9. TASK 30 реализует RefreshToken Security.
-10. Изменение этого решения требует нового ADR.
+1. RefreshToken РЅРµ СЏРІР»СЏРµС‚СЃСЏ Domain Entity.
+2. RefreshToken РЅРµ СЂР°Р·РјРµС‰Р°РµС‚СЃСЏ РІ domain.identity.
+3. RefreshToken lifecycle СЏРІР»СЏРµС‚СЃСЏ Security concern.
+4. tokenHash РЅРµ СЏРІР»СЏРµС‚СЃСЏ Domain state.
+5. raw refresh token РЅРµ СЏРІР»СЏРµС‚СЃСЏ Domain state.
+6. Security infrastructure РЅРµ РїСЂРѕРЅРёРєР°РµС‚ РІ Business Domain.
+7. Database representation РјРѕР¶РµС‚ СЃСѓС‰РµСЃС‚РІРѕРІР°С‚СЊ
+   РЅРµР·Р°РІРёСЃРёРјРѕ РѕС‚ Domain Entity.
+8. TASK 10 РЅРµ СЂРµР°Р»РёР·СѓРµС‚ RefreshToken.
+9. TASK 30 СЂРµР°Р»РёР·СѓРµС‚ RefreshToken Security.
+10. РР·РјРµРЅРµРЅРёРµ СЌС‚РѕРіРѕ СЂРµС€РµРЅРёСЏ С‚СЂРµР±СѓРµС‚ РЅРѕРІРѕРіРѕ ADR.
 
 ---
 
@@ -426,8 +426,8 @@ Security layer должен самостоятельно
 - [07-SECURITY](../07-SECURITY.md)
 - [TASK_PLAN](../ai/TASK_PLAN.md)
 - [TASK_LOG](../ai/TASK_LOG.md)
-- [ADR-001 — Domain First Architecture](ADR-001-Domain-First-Architecture.md)
-- [ADR-007 — Replaceable Infrastructure](ADR-007-Replaceable-Infrastructure.md)
+- [ADR-001 вЂ” Domain First Architecture](ADR-001-Domain-First-Architecture.md)
+- [ADR-007 вЂ” Replaceable Infrastructure](ADR-007-Replaceable-Infrastructure.md)
 
 ---
 
@@ -436,6 +436,38 @@ Security layer должен самостоятельно
 - [Domain Model](../diagrams/detailed/05-domain-model.puml)
 - [Security Flow](../diagrams/detailed/10-security-flow.puml)
 - [Package Responsibility](../diagrams/overview/03-package-responsibility.puml)
+
+---
+
+# Relation to ADR-016
+
+**Note вЂ” 2026-09-20, Р±РµР· РёР·РјРµРЅРµРЅРёСЏ СЂРµС€РµРЅРёСЏ Рё СЃС‚Р°С‚СѓСЃР° РґР°РЅРЅРѕРіРѕ ADR.**
+
+Р¤РѕСЂРјСѓР»РёСЂРѕРІРєРё СЂР°Р·РґРµР»РѕРІ
+# Persistence Boundary,
+# Impact on Database Рё
+# Impact on Liquibase
+Рѕ С‚РѕРј, С‡С‚Рѕ Database Schema Рё Liquibase changesets
+РЅРµ РёР·РјРµРЅСЏСЋС‚СЃСЏ РґР°РЅРЅС‹Рј ADR,
+РѕРїРёСЃС‹РІР°СЋС‚ СЃРѕСЃС‚РѕСЏРЅРёРµ РЅР° РјРѕРјРµРЅС‚ РїСЂРёРЅСЏС‚РёСЏ
+РґР°РЅРЅРѕРіРѕ СЂРµС€РµРЅРёСЏ (2026-08-18).
+
+Р‘РѕР»РµРµ РїРѕР·РґРЅРёР№ ADR-016
+СѓС‚РѕС‡РЅСЏРµС‚ Рё СЂР°Р·РІРёРІР°РµС‚ persistence Рё lifecycle
+СЂРµС€РµРЅРёСЏ РґР°РЅРЅРѕРіРѕ ADR:
+
+- РґРѕР±Р°РІР»СЏРµС‚ `family_id` РІ СЃСѓС‰РµСЃС‚РІСѓСЋС‰СѓСЋ С‚Р°Р±Р»РёС†Сѓ `refresh_token`;
+- РѕРїСЂРµРґРµР»СЏРµС‚ Rotation Family, rotation, replay detection
+  Рё family-wide revocation;
+- РІРЅРѕСЃРёС‚ РёР·РјРµРЅРµРЅРёРµ С‡РµСЂРµР· Liquibase changeset.
+
+РђСЂС…РёС‚РµРєС‚СѓСЂРЅР°СЏ РіСЂР°РЅРёС†Р°, СѓСЃС‚Р°РЅРѕРІР»РµРЅРЅР°СЏ РґР°РЅРЅС‹Рј ADR
+(RefreshToken РЅРµ СЏРІР»СЏРµС‚СЃСЏ С‡Р°СЃС‚СЊСЋ Business Domain Model),
+РѕСЃС‚Р°РµС‚СЃСЏ РІ СЃРёР»Рµ Р±РµР· РёР·РјРµРЅРµРЅРёР№.
+
+РЎРІСЏР·Р°РЅРЅС‹Р№ РґРѕРєСѓРјРµРЅС‚:
+
+- [ADR-016 вЂ” Refresh Token Rotation Family and Replay Protection](ADR-016-Refresh-Token-Rotation-Family-and-Replay-Protection.md)
 
 ---
 

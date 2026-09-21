@@ -37,3 +37,14 @@ blackoutradar:
     recovery:
       poll-interval: ${RECOVERY_POLL_INTERVAL:5m}
       stuck-threshold: ${RECOVERY_STUCK_THRESHOLD:15m}
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:blackoutradar}
+      audience: ${JWT_AUDIENCE:blackoutradar-api}
+      access-token-lifetime: ${JWT_ACCESS_TOKEN_LIFETIME:15m}
+      private-key: ${JWT_PRIVATE_KEY:}
+      public-key: ${JWT_PUBLIC_KEY:}
+    refresh-token:
+      lifetime: ${REFRESH_TOKEN_LIFETIME:30d}
+
+

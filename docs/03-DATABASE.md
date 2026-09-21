@@ -245,6 +245,10 @@ refresh_token (1:N)
 
 ## Таблица refresh_token
 
+`refresh_token` является Security/Persistence table.
+
+Таблица не представляет Domain Entity.
+
 ### Назначение
 
 Хранит Refresh Token
@@ -253,12 +257,19 @@ refresh_token (1:N)
 Исходное значение токена
 в базе данных не хранится.
 
+Дополнительно таблица управляет:
+
+- expiration;
+- revocation;
+- Rotation Family.
+
 ### Поля
 
 | Поле | Тип | NULL | Ограничения |
 |---|---|---|---|
 | id | UUID | NO | PK |
 | user_id | UUID | NO | FK |
+| family_id | UUID | NO | |
 | token_hash | VARCHAR | NO | UNIQUE |
 | expires_at | TIMESTAMP WITH TIME ZONE | NO | |
 | revoked_at | TIMESTAMP WITH TIME ZONE | YES | |
@@ -270,13 +281,48 @@ refresh_token (1:N)
 - PK(id);
 - UNIQUE(token_hash);
 - INDEX(user_id);
-- INDEX(expires_at).
+- INDEX(expires_at);
+- INDEX(family_id).
 
 ### ON DELETE
 
 user → refresh_token:
 
 CASCADE
+
+### Security Rules
+
+Raw Refresh Token не хранится в Database.
+
+Database хранит только `token_hash`.
+
+`family_id` является Security/Persistence state и не входит в Domain Model.
+
+### Rotation
+
+При успешной rotation:
+
+1. существующий Refresh Token получает `revoked_at`;
+2. создается новый Refresh Token;
+3. новый Refresh Token получает тот же `family_id`;
+4. новый `token_hash` сохраняется отдельно.
+
+### Replay Detection
+
+При использовании revoked Refresh Token:
+
+1. определяется соответствующий `family_id`;
+2. Security рассматривает ситуацию как reuse;
+3. действующие Refresh Tokens соответствующей Family отзываются.
+
+### Schema Change
+
+TASK 30 добавляет `family_id` в существующую `refresh_token` table
+через Liquibase changeset `013-refresh-token-family.sql`.
+
+Изменение Database Schema выполняется только через Liquibase.
+
+Не создается Domain Entity для `refresh_token`.
 
 ---
 

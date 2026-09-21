@@ -656,20 +656,115 @@ Security implementation
 
 Local Authentication.
 
-## TASK 30
+## TASK 30 — JWT and Refresh Token Security
 
-JWT and Refresh Token Security.
+TASK 30 реализует Security Token Model.
 
-Включает:
+### Access Token
 
-- Access Token;
+Access Token:
+
+- является короткоживущим JWT;
+- подписывается Security infrastructure;
+- содержит минимальный набор claims;
+- использует `User.id` как `sub`;
+- не содержит password;
+- не содержит passwordHash;
+- не содержит Refresh Token;
+- не содержит token hash;
+- не содержит Business Domain entities.
+
+Основные claims:
+
+- `iss`;
+- `sub`;
+- `aud`;
+- `iat`;
+- `exp`;
+- `jti`.
+
+JWT является Security representation и не является частью Domain Model.
+
+### Authentication Integration
+
+Authentication flow:
+
+AuthenticationManager
+
+→ AuthenticationProvider
+
+→ Authentication
+
+→ Access Token issuance
+
+→ JWT.
+
+Protected API flow:
+
+Bearer Token
+
+→ JWT validation
+
+→ Authentication
+
+→ SecurityContext.
+
+Domain Model не участвует непосредственно в JWT parsing и validation.
+
+### Refresh Token
+
+Refresh Token:
+
+- является opaque security credential;
+- не является JWT;
+- не является Domain Entity;
+- не хранится в raw form;
+- хранится только через `token_hash`;
+- имеет `expires_at`;
+- имеет `revoked_at`;
+- принадлежит Rotation Family.
+
+### Rotation Family
+
+Каждая authentication session получает собственный `family_id`.
+
+Пример:
+
+R1 → R2 → R3 → R4
+
+При успешной rotation старый Refresh Token отзывается, а новый получает тот же `family_id`.
+
+### Replay Detection
+
+Повторное использование уже revoked Refresh Token считается reuse.
+
+При обнаружении reuse отзывается вся соответствующая Rotation Family.
+
+Другие authentication sessions пользователя не затрагиваются.
+
+### Concurrent Rotation
+
+Rotation выполняется атомарно в Database transaction.
+
+Только один concurrent request может успешно выполнить rotation одного Refresh Token.
+
+JVM locks не используются как основной механизм синхронизации.
+
+### Security Boundary
+
+Domain Model не содержит:
+
 - JWT;
+- Access Token;
 - Refresh Token;
-- secure storage;
-- expiration;
-- revocation;
-- rotation;
-- authentication integration.
+- token hash;
+- family_id;
+- token expiration state;
+- token revocation state;
+- token rotation state;
+- replay state.
+
+Security-specific state находится за пределами Business Domain Model.
 
 ## TASK 31
 

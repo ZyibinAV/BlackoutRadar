@@ -29,3 +29,11 @@ blackoutradar:
     recovery:
       poll-interval: ${RECOVERY_POLL_INTERVAL:5m}
       stuck-threshold: ${RECOVERY_STUCK_THRESHOLD:15m}
+  security:
+    jwt:
+      issuer: blackoutradar
+      audience: blackoutradar-api
+      access-token-lifetime: 15m
+    refresh-token:
+      lifetime: 30d
+

@@ -13,6 +13,12 @@ import org.springframework.security.core.userdetails.UserDetails;
  * Spring Security representation of an authenticated user.
  * Lives outside the domain layer; the domain {@code User} knows nothing
  * about Spring Security and never carries credentials.
+ *
+ * <p>The identity never stores a password: password verification happens
+ * against the stored hash before this object is created, and the resulting
+ * authentication carries no password credentials. {@link #getPassword()}
+ * therefore returns {@code null} to represent absent credentials rather
+ * than a fictitious value.
  */
 public final class AuthenticatedUser implements UserDetails {
 
@@ -39,7 +45,7 @@ public final class AuthenticatedUser implements UserDetails {
 
     @Override
     public String getPassword() {
-        return "";
+        return null;
     }
 
     @Override

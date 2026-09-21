@@ -66,6 +66,20 @@ class LocalAuthenticationProviderTest {
     }
 
     @Test
+    void authenticatedIdentityCarriesNoPassword() {
+        when(userPort.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userPort.findPasswordHash(user.id())).thenReturn(Optional.of("stored-hash"));
+        when(passwordEncoder.matches("secret-password", "stored-hash")).thenReturn(true);
+
+        Authentication result = provider.authenticate(token("user@example.com", "secret-password"));
+
+        assertTrue(result.getPrincipal() instanceof AuthenticatedUser);
+        AuthenticatedUser authenticatedUser = (AuthenticatedUser) result.getPrincipal();
+        assertNull(authenticatedUser.getPassword());
+        assertNull(result.getCredentials());
+    }
+
+    @Test
     void unknownEmailFailsLikeWrongPassword() {
         when(userPort.findByEmail("absent@example.com")).thenReturn(Optional.empty());
 

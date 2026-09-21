@@ -23,3 +23,5 @@ databaseChangeLog:
       file: classpath:/db/changelog/011-delivery.sql
   - include:
       file: classpath:/db/changelog/012-delivery-ownership.sql
+  - include:
+      file: classpath:/db/changelog/013-refresh-token-family.sql
