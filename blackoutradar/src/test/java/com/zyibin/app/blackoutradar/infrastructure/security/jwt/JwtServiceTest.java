@@ -10,6 +10,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.zyibin.app.blackoutradar.infrastructure.security.SecurityUserResolver;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
@@ -24,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
 
@@ -215,7 +217,8 @@ class JwtServiceTest {
     void invalidTokenNeverYieldsAuthentication() {
         String tampered = jwtService.generateAccessToken(UUID.randomUUID()) + "tampered";
 
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        JwtAuthenticationConverter converter =
+                new JwtAuthenticationConverter(Mockito.mock(SecurityUserResolver.class));
         try {
             Jwt jwt = jwtService.decode(tampered);
             converter.convert(jwt);
@@ -229,8 +232,9 @@ class JwtServiceTest {
     void nullDependenciesRejected() {
         assertThrows(NullPointerException.class, () -> new JwtService(null));
         assertThrows(NullPointerException.class, () -> jwtService.generateAccessToken(null));
-        assertThrows(NullPointerException.class,
-                () -> new JwtAuthenticationConverter().convert(null));
+        assertThrows(NullPointerException.class, () -> new JwtAuthenticationConverter(null));
+        assertThrows(NullPointerException.class, () -> new JwtAuthenticationConverter(
+                Mockito.mock(SecurityUserResolver.class)).convert(null));
     }
 
     private String manualToken(Map<String, Object> claims) throws Exception {

@@ -141,6 +141,33 @@ User не отвечает за:
 - JWT;
 - Refresh Token lifecycle.
 
+### Роль и Authorization
+
+`UserRole` является атрибутом `User` и частью Domain Model.
+
+Роль описывает состояние учетной записи пользователя:
+
+```text
+User
+  ↓
+UserRole
+```
+
+Domain Model не определяет механизм Authorization.
+
+В частности, Domain Model не знает:
+
+- Spring Security;
+- `GrantedAuthority`;
+- `ROLE_USER`;
+- `ROLE_ADMIN`;
+- `Authentication`;
+- `SecurityContext`;
+- endpoint authorization;
+- method-level authorization.
+
+Authorization policy и ее enforcement находятся за пределами Domain Model.
+
 ### Жизненный цикл
 
 Создание

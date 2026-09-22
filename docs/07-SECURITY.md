@@ -253,6 +253,187 @@ Authorization определяет,
 - USER;
 - ADMIN.
 
+## UserRole и Security Authority
+
+`UserRole` является атрибутом Domain `User`.
+
+Domain знает:
+
+```text
+User
+  ↓
+UserRole
+```
+
+Domain не знает:
+
+- `GrantedAuthority`;
+- `ROLE_USER`;
+- `ROLE_ADMIN`;
+- `Authentication`;
+- `SecurityContext`;
+- Spring Security authorization mechanisms.
+
+Security преобразует Domain role в Security authority:
+
+```text
+UserRole.USER
+    ↓
+ROLE_USER
+
+UserRole.ADMIN
+    ↓
+ROLE_ADMIN
+```
+
+`ROLE_USER` и `ROLE_ADMIN` являются Security representation.
+
+---
+
+## RBAC
+
+Базовая модель Authorization — RBAC.
+
+Role определяет категорию операций, доступных пользователю.
+
+RBAC отвечает на вопрос:
+
+> Может ли пользователь с данной ролью выполнять этот тип операции?
+
+---
+
+## Ownership
+
+RBAC не заменяет проверку владения конкретным ресурсом.
+
+Ownership отвечает на вопрос:
+
+> Может ли данный пользователь выполнять операцию именно над этим ресурсом?
+
+Например, роль `USER` сама по себе не предоставляет доступ ко всем `Subscription`.
+
+Для пользовательских ресурсов может потребоваться:
+
+```text
+authenticated user
+        ↓
+role check
+        ↓
+ownership check
+        ↓
+access
+```
+
+RBAC и ownership являются отдельными проверками.
+
+---
+
+## Endpoint Authorization
+
+Authorization защищенных API выполняется на Web/Security boundary.
+
+Общий поток:
+
+```text
+HTTP Request
+    ↓
+Authentication
+    ↓
+Authorization
+    ↓
+Application Use Case
+    ↓
+Domain
+```
+
+Domain Model не выполняет Spring Security authorization checks.
+
+---
+
+## Method-level Authorization
+
+Method-level Authorization может использоваться на Web/Application entry points средствами Security framework.
+
+Например:
+
+```text
+@PreAuthorize(...)
+```
+
+если это требуется конкретным use case.
+
+Spring Security annotations и другие механизмы method-level authorization не должны попадать в Domain Model.
+
+Одна и та же Authorization policy не должна без необходимости дублироваться несколькими независимыми механизмами.
+
+---
+
+## JWT и Authorization
+
+JWT остается минимальным согласно ADR-015.
+
+Role claim в JWT не добавляется автоматически.
+
+Текущий JWT содержит:
+
+```text
+iss
+sub
+aud
+iat
+exp
+jti
+```
+
+Отсутствие role claim означает, что JWT не является отдельным источником Authorization role state.
+
+Если в будущем потребуется добавить role claim, это должно быть отдельно обосновано и зафиксировано архитектурным решением.
+
+---
+
+## JWT authentication и актуальная роль
+
+При JWT authentication Security получает актуальное состояние пользователя по `sub` через Persistence boundary:
+
+```text
+valid JWT
+    ↓
+current user lookup
+    ↓
+active check
+    ↓
+UserRole
+    ↓
+GrantedAuthority
+```
+
+Правила:
+
+- role не хранится в JWT;
+- роль берётся из актуального состояния пользователя;
+- missing user отклоняется;
+- inactive user отклоняется;
+- активный пользователь получает authority по mapping:
+
+```text
+USER  → ROLE_USER
+ADMIN → ROLE_ADMIN
+```
+
+Разрешение пользователя выполняется за пределами Domain Model через существующий persistence repository. Новый Domain Port для этого не вводится.
+
+---
+
+## Изменение роли
+
+`UserRole` является состоянием пользователя.
+
+Изменение роли не требует изменения Domain/Security boundary.
+
+Поскольку текущий JWT не содержит role claim, Authorization не зависит от устаревшего значения роли, записанного в ранее выданном JWT.
+
+Немедленная инвалидация уже выданных Access Token после изменения роли является отдельным Security Hardening / Token Lifecycle вопросом и данным разделом не определяется.
+
 ## USER
 
 Имеет доступ
@@ -644,6 +825,16 @@ Notification Delivery и Retry Processing не должны раскрывать
 18. Authentication использует стандартный Spring Security flow.
 19. AuthenticationProvider находится за пределами Domain Layer.
 20. SecurityContext не является частью Business Domain Model.
+21. Authorization является Security responsibility.
+22. UserRole остается атрибутом Domain User.
+23. Domain User не зависит от Spring Security Authorization.
+24. GrantedAuthority не является частью Domain Model.
+25. UserRole преобразуется Security в соответствующую GrantedAuthority.
+26. RBAC и ownership являются разными проверками.
+27. Endpoint authorization выполняется на Web/Security boundary.
+28. Method-level authorization находится за пределами Domain.
+29. JWT не получает role claim без отдельного архитектурного обоснования.
+30. Authorization policy не должна без необходимости дублироваться несколькими механизмами.
 
 ---
 

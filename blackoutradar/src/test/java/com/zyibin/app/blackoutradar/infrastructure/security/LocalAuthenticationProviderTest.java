@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.zyibin.app.blackoutradar.domain.identity.User;
 import com.zyibin.app.blackoutradar.domain.identity.UserRole;
 import com.zyibin.app.blackoutradar.domain.identity.port.UserPort;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,6 +77,27 @@ class LocalAuthenticationProviderTest {
         assertTrue(result.getPrincipal() instanceof AuthenticatedUser);
         AuthenticatedUser authenticatedUser = (AuthenticatedUser) result.getPrincipal();
         assertNull(authenticatedUser.getPassword());
+        assertNull(result.getCredentials());
+    }
+
+    @Test
+    void adminMapsToRoleAdminOnly() {
+        User admin = User.of(UUID.randomUUID(), "admin@example.com", UserRole.ADMIN, true);
+        when(userPort.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+        when(userPort.findPasswordHash(admin.id())).thenReturn(Optional.of("stored-hash"));
+        when(passwordEncoder.matches("secret-password", "stored-hash")).thenReturn(true);
+
+        Authentication result = provider.authenticate(token("admin@example.com", "secret-password"));
+
+        assertTrue(result.isAuthenticated());
+        assertTrue(result.getPrincipal() instanceof AuthenticatedUser);
+        AuthenticatedUser authenticatedUser = (AuthenticatedUser) result.getPrincipal();
+        assertEquals(
+                List.of("ROLE_ADMIN"),
+                authenticatedUser.getAuthorities().stream()
+                        .map(authority -> authority.getAuthority())
+                        .sorted()
+                        .toList());
         assertNull(result.getCredentials());
     }
 
