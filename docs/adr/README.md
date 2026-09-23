@@ -44,6 +44,7 @@ Architecture Decision Record (ADR) — документ, фиксирующий 
 | [ADR-012 — Retry and Delivery Attempt Processing](<ADR-012-Retry and Delivery Attempt Processing.md>) | Retry and Delivery Attempt Processing |
 | [ADR-013 — Retry Policy, Fencing and Recovery](<ADR-013 — Retry Policy, Fencing and Recovery.md>) | Retry Policy, Fencing and Recovery |
 | [ADR-014 — Concurrent Notification Finalization](<ADR-014 — Concurrent Notification Finalization.md>) | Concurrent Notification Finalization |
+| [ADR-018 — OAuth2 External Identity and Authentication Model](ADR-018-OAuth2-External-Identity-and-Authentication-Model.md) | OAuth2 External Identity and Authentication Model |
 
 ---
 

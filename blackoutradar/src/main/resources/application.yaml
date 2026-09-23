@@ -15,6 +15,31 @@ spring:
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
 
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_OAUTH_CLIENT_ID:}
+            client-secret: ${GITHUB_OAUTH_CLIENT_SECRET:}
+            scope:
+              - read:user
+              - user:email
+          vk:
+            provider: vk
+            client-id: ${VK_OAUTH_CLIENT_ID:}
+            client-secret: ${VK_OAUTH_CLIENT_SECRET:}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - email
+        provider:
+          vk:
+            authorization-uri: ${VK_OAUTH_AUTHORIZATION_URI:https://id.vk.com/authorize}
+            token-uri: ${VK_OAUTH_TOKEN_URI:https://id.vk.com/oauth2/auth}
+            user-info-uri: ${VK_OAUTH_USER_INFO_URI:https://id.vk.com/oauth2/user_info}
+            user-name-attribute-name: sub
+
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:25}

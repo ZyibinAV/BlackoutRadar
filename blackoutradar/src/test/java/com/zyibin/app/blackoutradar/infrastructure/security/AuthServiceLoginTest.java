@@ -11,6 +11,8 @@ import com.zyibin.app.blackoutradar.application.identity.UserRegistrationService
 import com.zyibin.app.blackoutradar.domain.identity.RegistrationResult;
 import com.zyibin.app.blackoutradar.infrastructure.security.jwt.JwtService;
 import com.zyibin.app.blackoutradar.infrastructure.security.jwt.JwtTestConfiguration;
+import com.zyibin.app.blackoutradar.infrastructure.security.oauth2.ExternalIdentityData;
+import com.zyibin.app.blackoutradar.infrastructure.security.oauth2.OAuth2Provider;
 import com.zyibin.app.blackoutradar.infrastructure.security.refresh.RefreshTokenService;
 import com.zyibin.app.blackoutradar.infrastructure.security.refresh.TokenPair;
 import com.zyibin.app.blackoutradar.persistence.jpa.entity.RefreshTokenEntity;
@@ -93,8 +95,36 @@ class AuthServiceLoginTest {
     }
 
     @Test
-    void loginDoesNotCreateAuthenticatedContextByItself() {
-        String email = "auth-" + UUID.randomUUID() + "@example.com";
+    void oauthLoginOpensOrdinaryTokenSession() {
+        ExternalIdentityData data = new ExternalIdentityData(
+                OAuth2Provider.GITHUB,
+                "oauth-sub-" + UUID.randomUUID(),
+                "oauth-" + UUID.randomUUID() + "@example.com",
+                true);
+
+        TokenPair pair = authService.login(data);
+
+        assertNotNull(pair.accessToken());
+        assertNotNull(pair.refreshToken());
+        UUID userId = jwtService.parseUserId(pair.accessToken());
+        assertNotNull(userId);
+        TokenPair rotated = refreshTokenService.refresh(pair.refreshToken());
+        assertEquals(userId, jwtService.parseUserId(rotated.accessToken()));
+    }
+
+    @Test
+    void oauthLoginWithoutUsableEmailFailsWithoutSession() {
+        long rowsBefore = repository.count();
+
+        assertThrows(BadCredentialsException.class, () -> authService.login(
+                new ExternalIdentityData(OAuth2Provider.VK, "oauth-sub-" + UUID.randomUUID(),
+                        null, false)));
+
+        assertEquals(rowsBefore, repository.count());
+    }
+
+    @Test
+    void loginDoesNotCreateAuthenticatedContextByItself() {        String email = "auth-" + UUID.randomUUID() + "@example.com";
         registrationService.register(email, "secret-password");
 
         authService.login(email, "secret-password");

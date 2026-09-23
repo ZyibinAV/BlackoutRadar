@@ -612,7 +612,7 @@ Refresh Token реализуется
 OAuth2 Provider.
 
 На текущем этапе
-используется GitHub OAuth2.
+поддерживаются GitHub и VK.
 
 Архитектура допускает подключение
 других OAuth2 Provider
@@ -641,6 +641,224 @@ OAuth2 Client:
 
 Подключение выполняется
 на Security / Infrastructure level.
+
+---
+
+## OAuth2 Authentication
+
+### OAuth2 providers
+
+Поддерживаются:
+
+```text
+GitHub
+VK
+```
+
+Используется общий OAuth2 authentication flow.
+
+### OAuth2 flow
+
+```text
+GitHub / VK
+    ↓
+Authorization Code + PKCE
+    ↓
+Spring Security OAuth2 Client
+    ↓
+provider-specific identity
+    ↓
+ExternalIdentityData
+    ↓
+ExternalIdentityAuthenticationService
+    ↓
+User resolution / creation
+    ↓
+AuthenticatedUser
+    ↓
+SecurityContext
+    ↓
+existing JWT + Refresh Token
+```
+
+### OAuth2 boundary
+
+- OAuth2 находится в Security/Infrastructure boundary;
+- `OAuth2User` не передается в Domain;
+- Spring Security OAuth2 types не входят в Domain;
+- provider-specific response не входит в Business Domain Model;
+- Domain User не получает `githubId`;
+- Domain User не получает `vkId`;
+- Domain Model не получает OAuth2-specific entity.
+
+### External identity
+
+```text
+User 1:N ExternalIdentity
+```
+
+`ExternalIdentity` является Security/Persistence concept.
+
+Уникальность:
+
+```text
+(provider, provider_subject)
+(user_id, provider)
+```
+
+### Provider-neutral model
+
+`ExternalIdentityData` содержит:
+
+```text
+provider
+subject
+email
+emailVerified
+```
+
+Provider-specific mapping выполняется отдельно:
+
+```text
+GitHubIdentityMapper
+VkIdentityMapper
+```
+
+Оба преобразуют данные провайдера в `ExternalIdentityData`.
+
+### User resolution
+
+Порядок разрешения пользователя:
+
+```text
+OAuth2 success
+    ↓
+find ExternalIdentity by provider + subject
+    ↓
+если найдена → получить User
+    ↓
+проверить active
+    ↓
+AuthenticatedUser
+```
+
+Если identity не найдена:
+
+```text
+validate usable email
+    ↓
+create User
+    ↓
+create ExternalIdentity
+    ↓
+AuthenticatedUser
+```
+
+Создание User и ExternalIdentity должно быть атомарным.
+
+### Создание нового OAuth2 User
+
+```text
+role = USER
+isActive = true
+passwordHash = NULL
+email = provider email
+```
+
+`nickname`, `about`, `avatar` автоматически из OAuth2-профиля не синхронизируются.
+
+### Email
+
+- email необходим при первом создании User;
+- если usable email отсутствует — новый User не создается;
+- отсутствие email не приводит к изменению Domain Model;
+- совпадение OAuth2 email с существующим Local User не приводит к автоматическому связыванию аккаунтов.
+
+### Existing Local User
+
+```text
+OAuth2 email == existing User email
+```
+
+не является основанием для автоматического linking.
+
+Связывание Local User и внешней identity относится к отдельной будущей функциональности.
+
+### Existing External Identity
+
+Если:
+
+```text
+(provider, provider_subject)
+```
+
+уже существует:
+
+- новый User не создается;
+- identity не переносится другому User;
+- разрешается существующий User;
+- проверяется `isActive`;
+- при inactive User authentication отклоняется.
+
+### JWT
+
+OAuth2 после успешной аутентификации использует существующую JWT-модель.
+
+JWT claims не изменяются.
+
+Не добавлять:
+
+```text
+provider
+email
+role
+```
+
+в JWT.
+
+`sub` продолжает содержать:
+
+```text
+User.id
+```
+
+### Refresh Token
+
+OAuth2 authentication использует существующую модель Refresh Token и Rotation Family.
+
+Не создается отдельная OAuth2-модель Refresh Token.
+
+ADR-009, ADR-015 и ADR-016 остаются действующими.
+
+### Account Linking
+
+```text
+Account linking не входит в TASK 32.
+```
+
+Не реализуется автоматическое связывание:
+
+```text
+Local User ↔ GitHub
+Local User ↔ VK
+```
+
+Это отдельная будущая функциональность.
+
+### Provider-specific rules
+
+Для GitHub:
+
+- используется стабильный provider subject;
+- email не является identity key;
+- для получения подтвержденного email используется соответствующий GitHub scope;
+- provider login не используется как identity key.
+
+Для VK:
+
+- используется стабильный идентификатор пользователя VK;
+- email может отсутствовать;
+- при отсутствии usable email первый User не создается.
 
 ---
 
@@ -963,7 +1181,7 @@ Authorization.
 
 ## TASK 32
 
-GitHub OAuth2.
+OAuth2 Authentication: GitHub + VK.
 
 ## TASK 33
 

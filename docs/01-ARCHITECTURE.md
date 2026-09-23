@@ -697,6 +697,84 @@ Authorization и OAuth2
 
 [ADR-007 — Replaceable Infrastructure](adr/ADR-007-Replaceable-Infrastructure.md)
 
+### Внешняя OAuth2 identity
+
+OAuth2 является Security/Infrastructure concern.
+
+OAuth2-specific types и `OAuth2User`
+не входят в Business Domain Model.
+
+GitHub и VK рассматриваются
+через общий provider-neutral механизм
+внешней identity.
+
+Внешняя identity представляется через:
+
+```text
+ExternalIdentity
+```
+
+Связь имеет вид:
+
+```text
+User
+  1
+  |
+  N
+ExternalIdentity
+```
+
+`ExternalIdentity` не является Domain Entity.
+
+Persistence-модель внешней identity
+находится за пределами Domain.
+
+Для провайдеров используется
+общий механизм разрешения пользователя.
+
+Provider-specific данные преобразуются
+в provider-neutral данные
+до передачи в общий authentication flow.
+
+OAuth2 authentication после успешного
+разрешения пользователя приводит
+к существующему `AuthenticatedUser`.
+
+После этого используется
+существующая Security/JWT/Refresh Token модель.
+
+OAuth2 не изменяет существующую JWT-модель.
+
+Account linking не входит в TASK 32.
+
+Рядом с описанием Security flow:
+
+```text
+GitHub / VK
+    ↓
+OAuth2 Authorization Code + PKCE
+    ↓
+Spring Security OAuth2 Client
+    ↓
+Provider-specific identity
+    ↓
+ExternalIdentityData
+    ↓
+ExternalIdentityAuthenticationService
+    ↓
+User resolution / creation
+    ↓
+AuthenticatedUser
+    ↓
+SecurityContext
+    ↓
+existing JWT + Refresh Token
+```
+
+Подробнее:
+
+[ADR-018 — OAuth2 External Identity and Authentication Model](adr/ADR-018-OAuth2-External-Identity-and-Authentication-Model.md)
+
 ---
 
 ## Persistence

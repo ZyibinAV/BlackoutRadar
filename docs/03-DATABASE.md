@@ -326,6 +326,82 @@ TASK 30 добавляет `family_id` в существующую `refresh_toke
 
 ---
 
+## Таблица external_identity
+
+`external_identity` является Security/Persistence table.
+
+Таблица не представляет Domain Entity.
+
+### Назначение
+
+Хранит связь между внутренним `User`
+и внешней identity OAuth2-провайдера.
+
+### Поля
+
+| Поле | Тип | NULL | Ограничения |
+|---|---|---|---|
+| id | UUID | NO | PK |
+| user_id | UUID | NO | FK |
+| provider | VARCHAR | NO | |
+| provider_subject | VARCHAR | NO | |
+| created_at | TIMESTAMP WITH TIME ZONE | NO | |
+| updated_at | TIMESTAMP WITH TIME ZONE | NO | |
+
+### Основные ограничения
+
+```text
+UNIQUE(provider, provider_subject)
+UNIQUE(user_id, provider)
+```
+
+Это означает:
+
+- одна внешняя identity конкретного провайдера
+  принадлежит только одному User;
+- один User может иметь не более одной identity
+  одного провайдера.
+
+### Provider
+
+Поддерживаются провайдеры:
+
+```text
+GITHUB
+VK
+```
+
+### Важные правила
+
+- `provider_subject` является идентификатором
+  пользователя у внешнего провайдера;
+- email не используется как внешний идентификатор;
+- email не хранится в `external_identity`;
+- `external_identity` не заменяет таблицу `user`;
+- существующая таблица `user` не получает `github_id`;
+- существующая таблица `user` не получает `vk_id`;
+- существующая структура `user.password_hash`
+  не изменяется из-за OAuth2;
+- для OAuth2-пользователя `password_hash`
+  может оставаться `NULL`,
+  как уже допускает текущая модель.
+
+### Schema Change
+
+Таблица `external_identity` реализована
+в рамках TASK 32 через отдельный
+Liquibase changeset.
+
+Изменение Database Schema выполняется только через Liquibase.
+
+Не создается Domain Entity для `external_identity`.
+
+Изменение Database Schema выполняется только через Liquibase.
+
+Не создается Domain Entity для `external_identity`.
+
+---
+
 # NotificationChannel
 
 ## Таблица notification_channel
