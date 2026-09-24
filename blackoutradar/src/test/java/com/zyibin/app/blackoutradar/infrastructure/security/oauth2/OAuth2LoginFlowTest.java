@@ -3,6 +3,7 @@ package com.zyibin.app.blackoutradar.infrastructure.security.oauth2;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -143,9 +144,12 @@ class OAuth2LoginFlowTest {
         OAuth2User oauthUser =
                 new DefaultOAuth2User(List.of(), Map.of("sub", "some-subject"), "sub");
 
-        assertThrows(OAuth2AuthenticationException.class, () -> successHandler
-                .onAuthenticationSuccess(
+        OAuth2AuthenticationException failure = assertThrows(OAuth2AuthenticationException.class,
+                () -> successHandler.onAuthenticationSuccess(
                         new OAuth2AuthenticationToken(oauthUser, oauthUser.getAuthorities(), "unknown")));
+
+        assertTrue(!failure.getMessage().contains("unknown"));
+        assertTrue(!failure.getMessage().contains("some-subject"));
     }
 
     private OAuth2UserRequest request(String registrationId, String userInfoUri, String nameAttribute) {

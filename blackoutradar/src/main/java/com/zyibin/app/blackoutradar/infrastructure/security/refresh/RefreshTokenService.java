@@ -52,6 +52,11 @@ public class RefreshTokenService {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.jwtService = Objects.requireNonNull(jwtService, "jwtService must not be null");
+        if (properties.getLifetime() == null
+                || properties.getLifetime().isZero()
+                || properties.getLifetime().isNegative()) {
+            throw new IllegalArgumentException("Refresh token lifetime must be positive");
+        }
     }
 
     /**

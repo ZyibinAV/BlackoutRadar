@@ -110,6 +110,8 @@ class RefreshTokenServiceTest {
                         () -> refreshTokenService.refresh(raw));
 
         assertEquals("Bad credentials", failure.getMessage());
+        assertTrue(!failure.getMessage().contains(raw));
+        assertTrue(!failure.getMessage().contains(refreshTokenService.hash(raw)));
         assertEquals(1, repository.findByUserId(userId).size());
     }
 
@@ -137,11 +139,13 @@ class RefreshTokenServiceTest {
 
     @Test
     void unknownTokenFailsGenerically() {
+        String raw = "unknown-" + UUID.randomUUID();
         BadCredentialsException failure =
                 assertThrows(BadCredentialsException.class,
-                        () -> refreshTokenService.refresh("unknown-" + UUID.randomUUID()));
+                        () -> refreshTokenService.refresh(raw));
 
         assertEquals("Bad credentials", failure.getMessage());
+        assertTrue(!failure.getMessage().contains(raw));
     }
 
     @Test

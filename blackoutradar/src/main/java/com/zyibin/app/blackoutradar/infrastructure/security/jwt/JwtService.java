@@ -38,6 +38,10 @@ import org.springframework.stereotype.Service;
  * <p>RSA keys are parsed lazily so that missing key configuration fails fast
  * on first token operation instead of breaking application context startup.
  * Raw tokens and keys are never written to logs.
+ *
+ * <p>Issuer, audience and access token lifetime are validated eagerly in the
+ * constructor: misconfigured security properties fail application startup
+ * instead of silently issuing unusable tokens.
  */
 @Service
 public class JwtService {
@@ -49,6 +53,17 @@ public class JwtService {
 
     public JwtService(JwtProperties properties) {
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        if (properties.getIssuer() == null || properties.getIssuer().isBlank()) {
+            throw new IllegalArgumentException("JWT issuer must not be blank");
+        }
+        if (properties.getAudience() == null || properties.getAudience().isBlank()) {
+            throw new IllegalArgumentException("JWT audience must not be blank");
+        }
+        if (properties.getAccessTokenLifetime() == null
+                || properties.getAccessTokenLifetime().isZero()
+                || properties.getAccessTokenLifetime().isNegative()) {
+            throw new IllegalArgumentException("JWT access token lifetime must be positive");
+        }
     }
 
     /**
@@ -94,7 +109,7 @@ public class JwtService {
         try {
             return UUID.fromString(jwt.getSubject());
         } catch (IllegalArgumentException exception) {
-            throw new JwtException("Invalid token subject", exception);
+            throw new JwtException("Invalid token subject");
         }
     }
 

@@ -862,6 +862,194 @@ Local User ↔ VK
 
 ---
 
+## Security Hardening
+
+Security Hardening выполняется после завершения базовых механизмов:
+
+- Local Authentication;
+- JWT Authentication;
+- Refresh Token;
+- Authorization;
+- OAuth2 Authentication.
+
+TASK 33 усиливает существующую Security implementation и не изменяет установленную Security Model.
+
+### Security Representation
+
+Security representation пользователя должна содержать только данные, необходимые для authentication и authorization.
+
+Запрещается сохранять или передавать через Security representation:
+
+- raw password;
+- passwordHash;
+- Refresh Token;
+- Refresh Token hash;
+- OAuth2 access token, если он больше не требуется для authentication;
+- provider credentials;
+- иные секретные значения.
+
+После успешной authentication credentials должны быть очищены и не должны оставаться в Authentication или SecurityContext.
+
+Security representation не должна раскрывать чувствительные данные через:
+
+- `toString()`;
+- исключения;
+- логи;
+- диагностические сообщения.
+
+### JWT Hardening
+
+JWT остаётся Security representation согласно ADR-015.
+
+В рамках TASK 33 не изменяются:
+
+- JWT claims;
+- `sub = User.id`;
+- отсутствие role claim;
+- JWT validation model;
+- Access Token model.
+
+Hardening проверяет безопасную обработку JWT:
+
+- validation;
+- expiration;
+- issuer;
+- audience;
+- signature;
+- required claims;
+- обработку недействительных токенов;
+- отсутствие утечки JWT в логах и исключениях.
+
+### Refresh Token Hardening
+
+Refresh Token остаётся opaque token и не является частью Domain Model.
+
+Существующая модель сохраняется:
+
+- hash-only persistence;
+- expiration;
+- revocation;
+- rotation;
+- Rotation Family;
+- replay detection;
+- family-wide revocation;
+- concurrent rotation protection.
+
+TASK 33 не изменяет модель Refresh Token, Rotation Family или replay protection.
+
+Hardening проверяет:
+
+- безопасную обработку raw token;
+- отсутствие raw token в persistence;
+- отсутствие raw token и hash в логах;
+- корректную обработку expired token;
+- корректную обработку revoked token;
+- корректную обработку replay;
+- безопасное поведение при concurrent refresh.
+
+### Security Configuration
+
+Security-critical configuration должна проходить проверку при запуске приложения.
+
+К security-critical configuration относятся:
+
+- JWT signing configuration;
+- JWT issuer;
+- JWT audience;
+- Access Token expiration;
+- Refresh Token expiration;
+- OAuth2 client credentials;
+- другие секреты, необходимые для Security infrastructure.
+
+Некорректная обязательная security configuration не должна приводить к запуску приложения в неизвестном или небезопасном состоянии.
+
+### Secrets
+
+Секреты не должны находиться:
+
+- в исходном коде;
+- в Domain Model;
+- в persistence entities;
+- в Git;
+- в логах;
+- в исключениях;
+- в диагностических сообщениях.
+
+Секреты должны передаваться через конфигурацию инфраструктуры.
+
+### Security Error Handling
+
+Ошибки Security должны иметь безопасное внешнее представление.
+
+Запрещается раскрывать:
+
+- наличие или отсутствие пользователя;
+- password verification details;
+- JWT validation internals;
+- Refresh Token state;
+- token hash;
+- OAuth2 provider credentials;
+- OAuth2 access token;
+- внутренние stack traces.
+
+### Security Diagnostics
+
+Security-события могут логироваться для диагностики, но диагностическая информация не должна содержать credentials или другие секретные данные.
+
+Допустимо фиксировать факт события:
+
+- authentication failure;
+- authorization failure;
+- JWT rejection;
+- Refresh Token rejection;
+- Refresh Token replay detection;
+- OAuth2 authentication failure.
+
+При этом сами credentials и токены в журнал не записываются.
+
+### Web Security Policy
+
+TASK 33 определяет требования к будущей Web Security boundary, но не реализует полноценный REST/Web слой.
+
+В текущем проекте отсутствуют:
+
+- REST Authentication API;
+- HTTP OAuth2 callback integration;
+- HTTP response model;
+- redirect model;
+- SecurityFilterChain для будущей Web integration.
+
+Поэтому TASK 33 не создаёт искусственный Web слой.
+
+CSRF, CORS и Security Headers рассматриваются как Web Security policy.
+
+Их непосредственная реализация выполняется вместе с соответствующей Web/REST integration.
+
+### Scope Restrictions
+
+TASK 33 не включает:
+
+- изменение Domain Model;
+- изменение Database Schema;
+- Liquibase migrations;
+- изменение JWT claims;
+- добавление role claim;
+- изменение Refresh Token model;
+- token blacklist;
+- изменение Rotation Family;
+- изменение replay protection;
+- отдельную модель Security Session;
+- немедленную инвалидацию Access Token при изменении роли;
+- REST Authentication API;
+- HTTP OAuth2 callback integration;
+- endpoint-specific authorization rules;
+- Account Linking;
+- OAuth2 profile synchronization.
+
+Если для решения одной из этих задач потребуется новое архитектурное решение, implementation TASK 33 останавливается до его отдельного согласования.
+
+---
+
 # Password Security
 
 Для локальной аутентификации

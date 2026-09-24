@@ -43,7 +43,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
         try {
             return UUID.fromString(jwt.getSubject());
         } catch (IllegalArgumentException exception) {
-            throw new JwtException("Invalid token subject", exception);
+            throw new JwtException("Invalid token subject");
         }
     }
 }

@@ -229,6 +229,48 @@ class JwtServiceTest {
     }
 
     @Test
+    void invalidConfigurationFailsFast() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService(testProperties(keyPair, null, AUDIENCE, Duration.ofMinutes(15))));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService(testProperties(keyPair, "  ", AUDIENCE, Duration.ofMinutes(15))));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService(testProperties(keyPair, ISSUER, null, Duration.ofMinutes(15))));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService(testProperties(keyPair, ISSUER, "  ", Duration.ofMinutes(15))));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService(testProperties(keyPair, ISSUER, AUDIENCE, null)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService(testProperties(keyPair, ISSUER, AUDIENCE, Duration.ZERO)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService(testProperties(keyPair, ISSUER, AUDIENCE,
+                        Duration.ofMinutes(-1))));
+    }
+
+    @Test
+    void failureMessagesContainNoTokenMaterial() throws Exception {
+        String token = jwtService.generateAccessToken(UUID.randomUUID());
+        String tampered = token.substring(0, token.length() - 2) + "AA";
+
+        JwtException tamperedFailure =
+                assertThrows(JwtException.class, () -> jwtService.decode(tampered));
+        assertTrue(tamperedFailure.getMessage() != null);
+        assertTrue(!tamperedFailure.getMessage().contains(token));
+        assertTrue(!tamperedFailure.getMessage().contains(tampered));
+
+        String foreignSubject = manualToken(Map.of(
+                "iss", ISSUER,
+                "sub", "not-a-uuid-subject",
+                "aud", List.of(AUDIENCE),
+                "jti", UUID.randomUUID().toString(),
+                "iat", Instant.now().getEpochSecond(),
+                "exp", Instant.now().plus(Duration.ofMinutes(5)).getEpochSecond()));
+        JwtException subjectFailure =
+                assertThrows(JwtException.class, () -> jwtService.parseUserId(foreignSubject));
+        assertTrue(!subjectFailure.getMessage().contains("not-a-uuid-subject"));
+    }
+
+    @Test
     void nullDependenciesRejected() {
         assertThrows(NullPointerException.class, () -> new JwtService(null));
         assertThrows(NullPointerException.class, () -> jwtService.generateAccessToken(null));
